@@ -62,8 +62,9 @@ def extract_tweets(page_soup, include_retweets: bool, oldest_date: str):
                 break
             else:
                 filtered_tweets.append(tweet)
+        return filtered_tweets, fast_exit
 
-    return filtered_tweets, fast_exit
+    return tweets, fast_exit
 
 def scrape_tweets(username: str, num_pages: int, include_retweets: bool, checkpoint: str, oldest_date: str):
     # Get user twitter url
