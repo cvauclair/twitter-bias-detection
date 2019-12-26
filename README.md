@@ -10,4 +10,5 @@ A Twitter bias detection and analysis framework.
 
 ## Usage
 `pip3 install -r requirements.txt`
+
 `python3 src/scraper/main.py`
