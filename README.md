@@ -9,3 +9,5 @@ A Twitter bias detection and analysis framework.
     * utils.py: Python script containing all helper functions for scraping.
 
 ## Usage
+`pip3 install -r requirements.txt`
+`python3 src/scraper/main.py`
