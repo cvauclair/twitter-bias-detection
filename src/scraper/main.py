@@ -3,6 +3,7 @@ from bs4 import BeautifulSoup as soup
 import argparse
 import sys, traceback
 import json
+import parsedatetime as pdt
 import time
 
 import utils
@@ -21,7 +22,19 @@ def get_text(tweet):
     except:
         return 'ERROR'
 
-def extract_tweets(page_soup, include_retweets: bool):
+def get_date(tweet):
+    try:
+        return tweet.find('small', {'class': 'time'}).a['title']
+    except:
+        return 'ERROR'
+
+def is_tweet_old(tweet: str, oldest_date: str):
+    # Compares if tweet date is older than oldest_date
+    splitDate = tweet['originalDate'].split(" - ")
+    calendar = pdt.Calendar()
+    return calendar.parseDT(splitDate[1]) < calendar.parseDT(oldest_date)
+
+def extract_tweets(page_soup, include_retweets: bool, oldest_date: str):
     # Set inclusion function depending on flags
     if include_retweets:
         include = lambda t: True
@@ -31,18 +44,35 @@ def extract_tweets(page_soup, include_retweets: bool):
     # Extract tweets
     tweets = [{
         'url': TWITTER_ROOT_URL + get_url(t), 
-        'text': get_text(t)
+        'text': get_text(t),
+        'originalDate': get_date(t),
+        'isRetweet': t.div.has_attr('data-retweeter')
     } for t in page_soup.find_all('li', {'data-item-type': 'tweet'}) if include(t)]
 
-    return tweets
+    # Remove tweets that are older than oldest_date
+    # Note: Twitter does NOT give date when tweet was retweeted. So retweets are straight away added.
+    fast_exit = False
+    filtered_tweets = []
+    if oldest_date is not None:
+        for tweet in tweets:
+            if tweet['isRetweet']:
+                filtered_tweets.append(tweet)
+            elif is_tweet_old(tweet, oldest_date):
+                fast_exit = True
+                break
+            else:
+                filtered_tweets.append(tweet)
 
-def scrape_tweets(username: str, num_tweets: int, include_retweets: bool, checkpoint: str):
+    return filtered_tweets, fast_exit
+
+def scrape_tweets(username: str, num_pages: int, include_retweets: bool, checkpoint: str, oldest_date: str):
     # Get user twitter url
     twitter_user_url = f'{TWITTER_ROOT_URL}/{username}'
     
     tweets = []
     try:
-        while len(tweets) < num_tweets:
+        fast_exit = False
+        while len(tweets) < num_pages:
             if len(tweets) == 0:
                 # If first page scraped, simply get root page of user
                 html = utils.get_page(twitter_user_url)
@@ -54,7 +84,9 @@ def scrape_tweets(username: str, num_tweets: int, include_retweets: bool, checkp
                     sys.exit(1)
 
                 # Add tweets
-                tweets += extract_tweets(page_soup, include_retweets)
+                result = extract_tweets(page_soup, include_retweets, oldest_date)
+                tweets += result[0]
+                fast_exit = result[1]
                 
                 # Ptr to next page of tweets
                 ptr = page_soup.find("div", {"class": "stream-container"})["data-min-position"]
@@ -73,9 +105,15 @@ def scrape_tweets(username: str, num_tweets: int, include_retweets: bool, checkp
                 page_soup = soup(raw_data['items_html'], 'html.parser')
 
                 # Add tweets
-                tweets += extract_tweets(page_soup, include_retweets)
+                result = extract_tweets(page_soup, include_retweets, oldest_date)
+                tweets += result[0]
+                fast_exit = result[1]
 
                 ptr = raw_data['min_position']
+
+            # Perform fast exit if we have passed oldest_date during scraping
+            if fast_exit:
+                break
 
             time.sleep(1)
     except:
@@ -90,13 +128,14 @@ def main():
     # Check args
     parser = argparse.ArgumentParser(description='Scrape tweets')
     parser.add_argument('twitter_username', type=str)
-    parser.add_argument('-n', dest='num_tweets', type=int)
+    parser.add_argument('-n', dest='num_pages', type=int)
     parser.add_argument('-o', dest='output_filename', type=str)
     parser.add_argument('--include_retweets', default=True, type=bool)
     parser.add_argument('--checkpoint', default=None, type=str)
+    parser.add_argument('--oldest_date', default=None, type=str)
     args = parser.parse_args()
 
-    tweets = scrape_tweets(username=args.twitter_username, num_tweets=args.num_tweets, include_retweets=args.include_retweets, checkpoint=args.checkpoint)
+    tweets = scrape_tweets(username=args.twitter_username, num_pages=args.num_pages, include_retweets=args.include_retweets, checkpoint=args.checkpoint, oldest_date=args.oldest_date)
 
     if args.output_filename:
         with open(args.output_filename, 'w') as f:
