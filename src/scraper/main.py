@@ -4,6 +4,7 @@ import argparse
 import sys, traceback
 import json
 import parsedatetime as pdt
+import schedule
 import time
 
 import utils
@@ -66,7 +67,7 @@ def extract_tweets(page_soup, include_retweets: bool, oldest_date: str):
 
     return tweets, fast_exit
 
-def scrape_tweets(username: str, num_pages: int, include_retweets: bool, checkpoint: str, oldest_date: str):
+def scrape_tweets(username: str, num_pages: int, include_retweets: bool, checkpoint: str, oldest_date: str, output_filename: str):
     # Get user twitter url
     twitter_user_url = f'{TWITTER_ROOT_URL}/{username}'
     
@@ -108,6 +109,7 @@ def scrape_tweets(username: str, num_pages: int, include_retweets: bool, checkpo
                 # Add tweets
                 result = extract_tweets(page_soup, include_retweets, oldest_date)
                 tweets += result[0]
+                print("test")
                 fast_exit = result[1]
 
                 ptr = raw_data['min_position']
@@ -123,7 +125,11 @@ def scrape_tweets(username: str, num_pages: int, include_retweets: bool, checkpo
 
     print(f"[INFO] {len(tweets)} scraped!")
 
-    return tweets
+    if output_filename:
+        with open(output_filename, 'w') as f:
+            json.dump(tweets, f, indent=4)
+
+    return
 
 def main():
     # Check args
@@ -131,16 +137,20 @@ def main():
     parser.add_argument('twitter_username', type=str)
     parser.add_argument('-n', dest='num_pages', type=int)
     parser.add_argument('-o', dest='output_filename', type=str)
+    parser.add_argument('-t', dest='scheduled_time', type=str)
     parser.add_argument('--include_retweets', default=True, type=bool)
     parser.add_argument('--checkpoint', default=None, type=str)
     parser.add_argument('--oldest_date', default=None, type=str)
     args = parser.parse_args()
 
-    tweets = scrape_tweets(username=args.twitter_username, num_pages=args.num_pages, include_retweets=args.include_retweets, checkpoint=args.checkpoint, oldest_date=args.oldest_date)
+    if args.scheduled_time:
+        schedule.every().day.at(args.scheduled_time).do(scrape_tweets,username=args.twitter_username,num_pages=args.num_pages,include_retweets=args.include_retweets,checkpoint=args.checkpoint,oldest_date=args.oldest_date,output_filename=args.output_filename)
 
-    if args.output_filename:
-        with open(args.output_filename, 'w') as f:
-            json.dump(tweets, f, indent=4)
+        while True:
+            schedule.run_pending()
+            time.sleep(60) # wait one minute
+    else: 
+        scrape_tweets(username=args.twitter_username,num_pages=args.num_pages,include_retweets=args.include_retweets,checkpoint=args.checkpoint,oldest_date=args.oldest_date,output_filename=args.output_filename)
 
 if __name__ == "__main__":
     main()
