@@ -126,7 +126,7 @@ def scrape_tweets(username: str, num_pages: int, include_retweets: bool, checkpo
     print(f"[INFO] {len(tweets)} scraped!")
 
     if output_filename:
-        with open(output_filename, 'w') as f:
+        with open(output_filename, 'a+') as f:
             json.dump(tweets, f, indent=4)
 
     return
