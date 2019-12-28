@@ -29,6 +29,27 @@ def get_date(tweet):
     except:
         return 'ERROR'
 
+def get_num_likes(tweet):
+    try:
+        tweet_stats = [count['data-tweet-stat-count'] for count in tweet.find_all('span', {'class': 'ProfileTweet-actionCount'}) if count.has_attr('data-tweet-stat-count')]
+        return tweet_stats[2]
+    except:
+        return 'ERROR'
+
+def get_num_replies(tweet):
+    try:
+        tweet_stats = [count['data-tweet-stat-count'] for count in tweet.find_all('span', {'class': 'ProfileTweet-actionCount'}) if count.has_attr('data-tweet-stat-count')]
+        return tweet_stats[0]
+    except:
+        return 'ERROR'
+
+def get_num_retweets(tweet):
+    try:
+        tweet_stats = [count['data-tweet-stat-count'] for count in tweet.find_all('span', {'class': 'ProfileTweet-actionCount'}) if count.has_attr('data-tweet-stat-count')]
+        return tweet_stats[1]
+    except:
+        return 'ERROR'
+
 def is_tweet_old(tweet: str, oldest_date: str):
     # Compares if tweet date is older than oldest_date
     splitDate = tweet['originalDate'].split(" - ")
@@ -45,8 +66,11 @@ def extract_tweets(page_soup, include_retweets: bool, oldest_date: str):
     # Extract tweets
     tweets = [{
         'url': TWITTER_ROOT_URL + get_url(t), 
-        'text': get_text(t),
         'originalDate': get_date(t),
+        'text': get_text(t),
+        'num_replies': get_num_replies(t),
+        'num_retweets': get_num_retweets(t),
+        'num_likes': get_num_likes(t),
         'isRetweet': t.div.has_attr('data-retweeter')
     } for t in page_soup.find_all('li', {'data-item-type': 'tweet'}) if include(t)]
 
