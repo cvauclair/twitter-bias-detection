@@ -130,3 +130,6 @@ dmypy.json
 
 # Private shizzle
 *.pem
+
+#IntelliJ
+.idea/
