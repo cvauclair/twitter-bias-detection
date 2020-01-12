@@ -1,0 +1,6 @@
+{
+    "training_dataset": "resource/sentiment140/training.1600000.processed.noemoticon.csv",
+    "prediction_dataset": "tweets.json",
+    "batch_size": 16
+
+}
