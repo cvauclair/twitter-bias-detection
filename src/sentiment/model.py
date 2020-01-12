@@ -63,7 +63,7 @@ class SentimentBERT(pl.LightningModule):
         loss, logits = self.bert(batch['input_ids'], token_type_ids=batch['token_type_ids'], attention_mask=batch['attention_mask'], labels=batch['sentiment'])
         
         y_hat = torch.argmax(logits, dim=1).reshape(-1,1)
-        acc = (batch['sentiment'] == y_hat).sum()/batch['sentiment'].shape[0]
+        acc = (batch['sentiment'] == y_hat).sum().float()/batch['sentiment'].shape[0]
 
         logs = {
             'loss': loss,
