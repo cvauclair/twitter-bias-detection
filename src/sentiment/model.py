@@ -28,6 +28,8 @@ from transformers import BertTokenizer, BertForSequenceClassification, AdamW
 from dataset import TwitterCSVDataset, TwitterJSONDataset
 
 class SentimentBERT(pl.LightningModule):
+    name = 'sentiment_bert'
+    
     def __init__(self, config):
         super().__init__()
 
@@ -115,75 +117,88 @@ class SentimentBERT(pl.LightningModule):
     def test_dataloader(self):
         return DataLoader(self.prediction_dataset, batch_size=self.hparams.batch_size, shuffle=False, collate_fn=TwitterJSONDataset.collate)
 
-def run(model, config):
+# ================================================================
+# Main
+# ================================================================
+def save_config(config, path):
+    with open(path, 'w') as f:
+        json.dump(config, f)
+
+def get_model_dir(logger):
+    return f"{logger.save_dir}/{logger.name}/version_{logger.experiment.version}/"
+
+def get_logger(model_name, version: int = None, test: bool = False):
     tt_logger = TestTubeLogger(
-        save_dir="logs",
-        name=f"{model.name}",
+        save_dir="logs/tests" if test else "logs",
+        name=model_name,
         debug=False,
-        create_git_tag=False
+        create_git_tag=False,
+        version=version
     )
 
+    return tt_logger
+
+def get_checkpoint_callback(model_dir):
+    checkpoint_callback = ModelCheckpoint(
+        filepath=f'{model_dir}/checkpoints',
+        save_best_only=True,
+        verbose=False,
+        monitor='val_loss',
+        mode='min',
+        prefix=''
+    )
+
+    return checkpoint_callback
+
+def get_early_stopping_callback(patience):
     early_stop_callback = EarlyStopping(
         monitor='val_loss',
+        mode='min',
         min_delta=0.00,
-        patience=config['patience'],
+        patience=patience,
         verbose=False,
-        mode='min'
     )
 
-    checkpoint_callback = ModelCheckpoint(
-        filepath=f'logs/{tt_logger.name}/version_{tt_logger.experiment.version}/checkpoints',
-        save_best_only=True,
-        verbose=False,
-        monitor='val_loss',
-        mode='min',
-        prefix=''
-    )
-
-    trainer = Trainer(max_nb_epochs=100, early_stop_callback=early_stop_callback, checkpoint_callback=checkpoint_callback, logger=tt_logger, gpus=[0])
-    trainer.fit(model)
-    trainer.test(model)
-
-def test(model, config):
-    tt_logger = TestTubeLogger(
-        save_dir="logs/tests",
-        name=f"sentiment_bert",
-        debug=False,
-        create_git_tag=False
-    )
-
-    checkpoint_callback = ModelCheckpoint(
-        filepath=f'{tt_logger.save_dir}/{tt_logger.name}/version_{tt_logger.experiment.version}/checkpoints',
-        save_best_only=True,
-        verbose=False,
-        monitor='val_loss',
-        mode='min',
-        prefix=''
-    )
-
-    trainer = Trainer(max_nb_epochs=1, early_stop_callback=None, train_percent_check=0.1, checkpoint_callback=checkpoint_callback, logger=tt_logger, gpus=[0])
-    trainer.fit(model)
-    # trainer.test(model)
+    return early_stop_callback
 
 def main(args):
-    with open(args.config, 'r') as f:
-        config = json.load(f)
+    # Create trainer
+    trainer_args = {}
+    trainer_args['logger'] = get_logger(SentimentBERT.name, version=args.version, test=args.test)
+    trainer_args['checkpoint_callback'] = get_checkpoint_callback(model_dir=get_model_dir(trainer_args['logger']))
+    trainer_args['early_stop_callback'] = get_early_stopping_callback(args.patience) if not args.test or args.patience is not None else None
+    trainer_args['gpus'] = [0]
+
+    if args.test:
+        trainer = Trainer(max_nb_epochs=1, train_percent_check=0.01, val_percent_check=0.01, **trainer_args)
+    else:
+        trainer = Trainer(max_nb_epochs=100, **trainer_args)
+
+    # Load config
+    if args.version is not None:
+        with open(f"{get_model_dir(trainer_args['logger'])}/config.json", 'r') as f:
+            config = json.load(f)
+    else:
+        with open(args.config, 'r') as f:
+            config = json.load(f)
 
     # Set seeds for reproducibility
     torch.manual_seed(0)
     np.random.seed(0)
 
+    # Create model
     model = SentimentBERT(config)
 
-    if args.test:
-        test(model, config)
-    else:
-        run(model, config)
+    # Train and predict
+    trainer.fit(model)
+    trainer.test(model)
 
 if __name__ == "__main__":
     # Read arguments
     parser = argparse.ArgumentParser(description="Training SentimentBERT")
-    parser.add_argument('-c', '--config', dest='config', type=str)
+    parser.add_argument('-c', '--config', dest='config', type=str, required=True)
+    parser.add_argument('-v', '--version', dest='version', type=int, default=None)
+    parser.add_argument('-p', '--patience', dest='patience', type=int, default=None)
     parser.add_argument('--test', action='store_true')
     args = parser.parse_args()
     main(args)
