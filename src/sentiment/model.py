@@ -181,17 +181,21 @@ def main(args):
     else:
         with open(args.config, 'r') as f:
             config = json.load(f)
+        
+        # Save config for record keeping
+        with open(f"{get_model_dir(trainer_args['logger'])}/config.json", 'w') as f:
+            json.dump(config, f, indent=4)
 
     # Set seeds for reproducibility
     torch.manual_seed(0)
     np.random.seed(0)
 
     # Create model
-    model = SentimentBERT(config)
+    # model = SentimentBERT(config)
 
     # Train and predict
-    trainer.fit(model)
-    trainer.test(model)
+    # trainer.fit(model)
+    # trainer.test(model)
 
 if __name__ == "__main__":
     # Read arguments
