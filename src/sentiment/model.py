@@ -192,11 +192,11 @@ def main(args):
     np.random.seed(0)
 
     # Create model
-    # model = SentimentBERT(config)
+    model = SentimentBERT(config)
 
     # Train and predict
-    # trainer.fit(model)
-    # trainer.test(model)
+    trainer.fit(model)
+    trainer.test(model)
 
 if __name__ == "__main__":
     # Read arguments
