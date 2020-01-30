@@ -1,0 +1,6 @@
+scraper_configs:
+  'twitter_username': realDonaldTrump
+  'num_pages': 20
+  'include_retweets': true
+  'oldest_date': None
+  'checkpoint': None
