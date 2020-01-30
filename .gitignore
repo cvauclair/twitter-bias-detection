@@ -134,5 +134,8 @@ dmypy.json
 #IntelliJ
 .idea/
 
+#PyCharm
+.DS_Store
+
 # Configuration
 config.py
