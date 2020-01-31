@@ -74,10 +74,14 @@ class Pipeline:
 
         accounts = self.read_json_file(self.configs['accounts_file'])
 
+        print(accounts)
+
         all_tweets = []
         for u in accounts:
             # TODO: Save user to RDS if not here
-            all_tweets.append(self.scraper.scrape_tweets(u['username']))
+            user_tweets = self.scraper.scrape_tweets(u['username'])
+            if user_tweets:
+                all_tweets.extend(self.scraper.scrape_tweets(u['username']))
 
         self.write_output(tweets=all_tweets)
 
@@ -102,19 +106,17 @@ class Pipeline:
 
 
         # TODO: This is all changing
-        for t in all_tweets:
-            id = t['url'].split('/')[-1]
-            tweet_author = t['url'].split('/')[-3]
-            self.rds_controller.create_tweet(id=id,
-                                        author_id=tweet_author,
-                                        tweeted_on=t['originalDate'],
-                                        posted_by_id=self.configs['twitter_username'],
-                                        is_retweet=t['isRetweet'],
-                                        num_likes=t['num_likes'],
-                                        num_retweets=t['num_retweets'],
-                                        num_replies=t['num_replies'],
-                                        content=t['text'])
-
+        # for t in all_tweets:
+        #     self.rds_controller.create_tweet(id=id,
+        #                                 author_id=tweet_author,
+        #                                 tweeted_on=t['originalDate'],
+        #                                 posted_by_id=self.configs['twitter_username'],
+        #                                 is_retweet=t['isRetweet'],
+        #                                 num_likes=t['num_likes'],
+        #                                 num_retweets=t['num_retweets'],
+        #                                 num_replies=t['num_replies'],
+        #                                 content=t['text'])
+        #
 
 # ONLY HERE FOR TESTING
 if __name__ == '__main__':

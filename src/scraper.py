@@ -76,7 +76,15 @@ class Scraper:
         calendar = pdt.Calendar()
         return calendar.parseDT(split_date[1]) < calendar.parseDT(oldest_date)
 
-    def extract_tweets(self, page_soup, include_retweets: bool, oldest_date: str):
+    @staticmethod
+    def extract_author_username(url: str):
+        return url.split('/')[-3]
+
+    @staticmethod
+    def extract_tweet_id(url: str):
+        return url.split('/')[-1]
+
+    def extract_tweets(self, page_soup, include_retweets: bool, oldest_date: str, username: str):
         # Set inclusion function depending on flags
         if include_retweets:
             include = lambda t: True
@@ -85,6 +93,9 @@ class Scraper:
 
         # Extract tweets
         tweets = [{
+            'posted_by': username,
+            'author_id': self.extract_author_username(self.get_url(t)),
+            'tweet_id': self.extract_tweet_id(self.get_url(t)),
             'url': TWITTER_ROOT_URL + self.get_url(t),
             'originalDate': self.get_date(t),
             'text': self.get_text(t),
@@ -111,7 +122,6 @@ class Scraper:
 
         return tweets, fast_exit
 
-    # TODO: Add username as a field
     def scrape_tweets(self, username):
         # Get user twitter url
         twitter_user_url = f'{TWITTER_ROOT_URL}/{username}'
@@ -131,7 +141,7 @@ class Scraper:
                         sys.exit(1)
 
                     # Add tweets
-                    result = self.extract_tweets(page_soup, self.include_retweets, self.oldest_date)
+                    result = self.extract_tweets(page_soup, self.include_retweets, self.oldest_date, username)
                     tweets += result[0]
                     fast_exit = result[1]
 
@@ -152,7 +162,7 @@ class Scraper:
                     page_soup = soup(raw_data['items_html'], 'html.parser')
 
                     # Add tweets
-                    result = self.extract_tweets(page_soup, self.include_retweets, self.oldest_date)
+                    result = self.extract_tweets(page_soup, self.include_retweets, self.oldest_date, username)
                     tweets += result[0]
                     fast_exit = result[1]
 
