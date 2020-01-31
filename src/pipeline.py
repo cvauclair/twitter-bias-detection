@@ -74,8 +74,6 @@ class Pipeline:
 
         accounts = self.read_json_file(self.configs['accounts_file'])
 
-        print(accounts)
-
         all_tweets = []
         for u in accounts:
             # TODO: Save user to RDS if not here
