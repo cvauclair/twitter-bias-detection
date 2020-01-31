@@ -3,6 +3,7 @@ import pymysql
 import json
 from config import config
 
+
 class RDSController:
     def __init__(self):
         try:
@@ -78,7 +79,4 @@ class RDSController:
 
             cur.execute(query)
             self.conn.commit()
-            print("SUCCESS: Set bias of topic with {topic_id} to user with ID {user_id} with score {bias_score} succeeded".format(topic_id=topic_id, user_id=user_id, bias_score=bias_score))                            
-
-RDSController = RDSController()
-            
+            print("SUCCESS: Set bias of topic with {topic_id} to user with ID {user_id} with score {bias_score} succeeded".format(topic_id=topic_id, user_id=user_id, bias_score=bias_score))

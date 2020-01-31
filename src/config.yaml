@@ -1,5 +1,5 @@
 scraper_configs:
-  'twitter_username': realDonaldTrump
+  'twitter_username': chrissyteigen
   'num_pages': 20
   'include_retweets': true
   'oldest_date': None
