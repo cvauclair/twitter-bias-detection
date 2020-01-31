@@ -8,11 +8,10 @@ from rds_controller import RDSController
 class Pipeline:
     def __init__(self):
         self.configs = self.get_scraper_configs()
-        self.filename = self.build_filename(self.configs['twitter_username'])
+        self.filename = self.build_filename()
 
         # Scraper
-        self.scraper = Scraper(username=self.configs['twitter_username'],
-                          num_pages=self.configs['num_pages'],
+        self.scraper = Scraper(num_pages=self.configs['num_pages'],
                           include_retweets=self.configs['include_retweets'],
                           checkpoint=self.configs['checkpoint'],
                           oldest_date=self.configs['oldest_date'],
@@ -33,17 +32,17 @@ class Pipeline:
 
     # This needs to change because eventually we will have more than
     # one user per file
-    def build_filename(self, twitter_username):
+    def build_filename(self):
         """
         Builds a filename in required format
         :param twitter_username: user who's tweets have been scraped
         :return: formatted filename
         """
         current_date = datetime.now().strftime("%m_%d_%Y")
-        return "{}_{}".format(twitter_username, current_date)
+        return "{}_{}".format('scraped_tweets', current_date)
 
     @staticmethod
-    def read_output(file):
+    def read_json_file(file):
         """
         Reads the existing output file that has just been created
         and should be present in EC2.
@@ -52,12 +51,20 @@ class Pipeline:
         """
         output = []
         with open(file, 'r') as f:
-            tweets = json.load(f)
-            for t in tweets:
+            data = json.load(f)
+            for t in data:
                 output.append(t)
-        print(output)
         return output
 
+    def write_output(self, tweets):
+        """
+        Write output
+        :param tweets:
+        :return:
+        """
+        if self.filename:
+            with open(self.filename, 'w') as f:
+                json.dump(tweets, f, indent=4)
 
     def run_pipeline(self):
         # ----------------------------------------------
@@ -65,20 +72,39 @@ class Pipeline:
         # Scraping of tweets
         # ----------------------------------------------
 
-        self.scraper.scrape_and_output()
-        scraped_tweets = self.read_output(self.filename)
+        accounts = self.read_json_file(self.configs['accounts_file'])
+
+        all_tweets = []
+        for u in accounts:
+            # TODO: Save user to RDS if not here
+            all_tweets.append(self.scraper.scrape_tweets(u['username']))
+
+        self.write_output(tweets=all_tweets)
+
+        # scraped_tweets = self.read_json_file(self.filename)
 
         # ----------------------------------------------
         # STAGE 2
+        # BERT
+        # ----------------------------------------------
+
+
+        # ----------------------------------------------
+        # STAGE 3
+        # LDA
+        # ----------------------------------------------
+
+
+        # ----------------------------------------------
+        # STAGE 4
         # Saving tweets to RDS
         # ----------------------------------------------
 
 
-        #This needs to change once we have different users per tweet
-        for t in scraped_tweets:
+        # TODO: This is all changing
+        for t in all_tweets:
             id = t['url'].split('/')[-1]
             tweet_author = t['url'].split('/')[-3]
-            # Create user if not existent here
             self.rds_controller.create_tweet(id=id,
                                         author_id=tweet_author,
                                         tweeted_on=t['originalDate'],

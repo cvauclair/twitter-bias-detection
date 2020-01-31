@@ -1,6 +1,6 @@
 scraper_configs:
-  'twitter_username': chrissyteigen
   'num_pages': 20
   'include_retweets': true
   'oldest_date': None
   'checkpoint': None
+  'accounts_file': accounts.json
