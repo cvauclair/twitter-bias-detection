@@ -12,14 +12,12 @@ TWITTER_ROOT_URL = 'https://twitter.com'
 
 class Scraper:
     def __init__(self,
-                 username: str,
                  num_pages: int,
                  include_retweets: bool,
                  checkpoint: str,
                  oldest_date: str,
                  output_filename: str):
 
-        self.username = username
         self.num_pages = num_pages
         self.include_retweets = include_retweets
         self.checkpoint = checkpoint
@@ -78,7 +76,15 @@ class Scraper:
         calendar = pdt.Calendar()
         return calendar.parseDT(split_date[1]) < calendar.parseDT(oldest_date)
 
-    def extract_tweets(self, page_soup, include_retweets: bool, oldest_date: str):
+    @staticmethod
+    def extract_author_username(url: str):
+        return url.split('/')[-3]
+
+    @staticmethod
+    def extract_tweet_id(url: str):
+        return url.split('/')[-1]
+
+    def extract_tweets(self, page_soup, include_retweets: bool, oldest_date: str, username: str):
         # Set inclusion function depending on flags
         if include_retweets:
             include = lambda t: True
@@ -87,6 +93,9 @@ class Scraper:
 
         # Extract tweets
         tweets = [{
+            'posted_by': username,
+            'author_id': self.extract_author_username(self.get_url(t)),
+            'tweet_id': self.extract_tweet_id(self.get_url(t)),
             'url': TWITTER_ROOT_URL + self.get_url(t),
             'originalDate': self.get_date(t),
             'text': self.get_text(t),
@@ -113,9 +122,9 @@ class Scraper:
 
         return tweets, fast_exit
 
-    def scrape_tweets(self):
+    def scrape_tweets(self, username):
         # Get user twitter url
-        twitter_user_url = f'{TWITTER_ROOT_URL}/{self.username}'
+        twitter_user_url = f'{TWITTER_ROOT_URL}/{username}'
 
         tweets = []
         try:
@@ -128,11 +137,11 @@ class Scraper:
 
                     # Check for error on twitter page
                     if page_soup.find("div", {"class": "errorpage-topbar"}):
-                        print(f"[Error] Invalid username {self.username}")
+                        print(f"[Error] Invalid username {username}")
                         sys.exit(1)
 
                     # Add tweets
-                    result = self.extract_tweets(page_soup, self.include_retweets, self.oldest_date)
+                    result = self.extract_tweets(page_soup, self.include_retweets, self.oldest_date, username)
                     tweets += result[0]
                     fast_exit = result[1]
 
@@ -144,7 +153,7 @@ class Scraper:
                         raw_data = json.loads(scraper_utils.get_page(self.checkpoint))
                         checkpoint = None
                     else:
-                        raw_data = json.loads(scraper_utils.get_page(f'https://twitter.com/i/profiles/show/{self.username}/timeline/tweets?include_available_features=1&include_entities=1&max_position={ptr}&reset_error_state=false'))
+                        raw_data = json.loads(scraper_utils.get_page(f'https://twitter.com/i/profiles/show/{username}/timeline/tweets?include_available_features=1&include_entities=1&max_position={ptr}&reset_error_state=false'))
 
                     if not raw_data["has_more_items"] and not raw_data["min_position"]:
                         print("[INFO] No more tweets returned")
@@ -153,7 +162,7 @@ class Scraper:
                     page_soup = soup(raw_data['items_html'], 'html.parser')
 
                     # Add tweets
-                    result = self.extract_tweets(page_soup, self.include_retweets, self.oldest_date)
+                    result = self.extract_tweets(page_soup, self.include_retweets, self.oldest_date, username)
                     tweets += result[0]
                     fast_exit = result[1]
 
@@ -172,16 +181,6 @@ class Scraper:
 
         return tweets
 
-    def write_output(self, tweets):
-        if self.output_filename:
-            with open(self.output_filename, 'a+') as f:
-                json.dump(tweets, f, indent=4)
-
-    def scrape_and_output(self):
-        tweets = self.scrape_tweets()
-        self.write_output(tweets=tweets)
-
-
 # Only here for testing
 def main():
     # Check args
@@ -194,14 +193,13 @@ def main():
     parser.add_argument('--oldest_date', default=None, type=str)
     args = parser.parse_args()
 
-    scraper = Scraper(username=args.twitter_username,
-                      num_pages=args.num_pages,
+    scraper = Scraper(num_pages=args.num_pages,
                       include_retweets=args.include_retweets,
                       checkpoint=args.checkpoint,
                       oldest_date=args.oldest_date,
                       output_filename=args.output_filename)
 
-    tweets = scraper.scrape_tweets()
+    tweets = scraper.scrape_tweets(args.username)
 
     if args.output_filename:
         with open(args.output_filename, 'a+') as f:
