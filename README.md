@@ -1,6 +1,12 @@
 # Twitter-Bias-Detection
 A Twitter bias detection and analysis framework.
 
+## Bias Intuition
+![alt text](docs/bias.png)
+
+## Project Architecture
+![alt text](docs/arch.png)
+
 ## Installation
 
 ## Contents
