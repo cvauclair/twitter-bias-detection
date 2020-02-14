@@ -81,6 +81,27 @@ class Scraper:
         return url.split('/')[-3]
 
     @staticmethod
+    def extract_user_id(username: str, page_soup):
+        twitter_user_url = f'{TWITTER_ROOT_URL}/{username}'
+
+        if page_soup is None:
+            html = scraper_utils.get_page(twitter_user_url)
+            page_soup = soup(html, 'html.parser')
+
+            # Check for error on twitter page
+            if page_soup.find("div", {"class": "errorpage-topbar"}):
+                print(f"[Error] Invalid username {username}")
+                sys.exit(1)
+
+        # get user id
+        profile_nav = page_soup.find('div', {'role': 'navigation'})
+        if profile_nav is None:
+            print(f"[Error] Unable to locate user id for {username}")
+            sys.exit(1)
+
+        return profile_nav['data-user-id']
+
+    @staticmethod
     def extract_tweet_id(url: str):
         return url.split('/')[-1]
 
@@ -91,10 +112,14 @@ class Scraper:
         else:
             include = lambda t: not t.div.has_attr('data-retweeter')
 
+        # Initialize user id
+        user_id = self.extract_user_id(username, page_soup)
+
         # Extract tweets
         tweets = [{
-            'posted_by': username,
-            'author_id': self.extract_author_username(self.get_url(t)),
+            'posted_by_id': user_id,
+            'posted_by_username': username,
+            'author_username': self.extract_author_username(self.get_url(t)),
             'tweet_id': self.extract_tweet_id(self.get_url(t)),
             'url': TWITTER_ROOT_URL + self.get_url(t),
             'originalDate': self.get_date(t),
