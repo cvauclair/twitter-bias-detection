@@ -16,11 +16,11 @@ class RDSController:
 
         print("SUCCESS: Connection to RDS mysql instance succeeded")
 
-    def get_user_profile(self, user_id):
+    def get_user(self, user_id):
         with self.conn.cursor() as cur:
-            query = ('SELECT * FROM users WHERE id = {user_id}').format(id=user_id)
+            query = ('SELECT * FROM users WHERE id = {user_id}').format(user_id=user_id)
             cur.execute(query)
-            user = cur.fetchone(query)
+            user = cur.fetchall()
             print("SUCCESS: Successfully fetched user with id:", user_id)
             return user
 
@@ -31,8 +31,8 @@ class RDSController:
             self.conn.commit()
             print("SUCCESS: Successfully added new topic:", name)
 
-    def create_user(self, id, handle, num_followers, num_following, num_tweets, bio=None, location=None, photo_url=None,
-                    fullname=None):
+    def create_user(self, id, handle, num_followers, num_following, num_tweets, bio, location,
+                    fullname, photo_url=None):
         with self.conn.cursor() as cur:
             query = (
                 'INSERT INTO users (id, handle, followersCount, followingCount, tweetsCount, bio, location, photoURL, fullname) '
@@ -52,6 +52,7 @@ class RDSController:
                 .format(id=id, content=content, author_username=author_username, tweeted_on=tweeted_on,
                         posted_by_id=posted_by_id, is_retweet=is_retweet, num_likes=num_likes, num_replies=num_replies,
                         num_retweets=num_retweets, sentiment=sentiment))
+
             cur.execute(query)
             self.conn.commit()
             print("SUCCESS: Creation of tweet with ID {} succeeded".format(id))

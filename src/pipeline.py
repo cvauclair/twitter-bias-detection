@@ -2,6 +2,7 @@ import yaml
 from datetime import datetime
 from scraper import Scraper
 import json
+import pymysql
 from rds_controller import RDSController
 
 
@@ -76,7 +77,28 @@ class Pipeline:
 
         all_tweets = []
         for u in accounts:
-            # TODO: Save user to RDS if not here
+            # Check if user exists. If not, create user.
+            user_id = self.scraper.extract_user_id(u['username'], None)
+            user = self.rds_controller.get_user(user_id)
+
+            if len(user) == 0:
+                try:
+                    user_profile = self.scraper.extract_user_profile(self.scraper, u['username'])
+                    self.rds_controller.create_user(
+                        user_profile['id'],
+                        user_profile['username'],
+                        user_profile['followers_count'],
+                        user_profile['following_count'],
+                        user_profile['tweets_count'],
+                        user_profile['bio'],
+                        user_profile['location'],
+                        user_profile['fullname']
+                    )
+                except pymysql.err.IntegrityError as err:
+                    print(f"[Error] Unable to create user {user_profile['username']} in RDS")
+                    print(format(err))
+                    continue
+
             user_tweets = self.scraper.scrape_tweets(u['username'])
             if user_tweets:
                 all_tweets.extend(self.scraper.scrape_tweets(u['username']))

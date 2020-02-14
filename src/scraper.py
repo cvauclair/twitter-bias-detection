@@ -102,6 +102,41 @@ class Scraper:
         return profile_nav['data-user-id']
 
     @staticmethod
+    # Method does not scrape for image yet
+    def extract_user_profile(self, username: str):
+        twitter_user_url = f'{TWITTER_ROOT_URL}/{username}'
+        html = scraper_utils.get_page(twitter_user_url)
+        page_soup = soup(html, 'html.parser')
+
+        # Check for error on twitter page
+        if page_soup.find("div", {"class": "errorpage-topbar"}):
+            print(f"[Error] Invalid username {username}")
+            sys.exit(1)
+
+        # Get counts of tweets, following, and followers
+        counts = [profile_nav['data-count']
+                  for profile_nav in page_soup.find_all('span', {'class': 'ProfileNav-value'}, limit=3)]
+        # Get bio
+        bio = page_soup.find('p', {'class': 'ProfileHeaderCard-bio u-dir'}).text
+        # Get location
+        location = page_soup.find('span', {'class': 'ProfileHeaderCard-locationText u-dir'}).text
+        # Get full name
+        fullname = page_soup.find('a', {'class': 'ProfileHeaderCard-nameLink u-textInheritColor js-nav'}).text
+
+        user_profile = {
+            'id': self.extract_user_id(username, page_soup),
+            'username': username,
+            'tweets_count': counts[0],
+            'following_count': counts[1],
+            'followers_count': counts[2],
+            'bio': bio,
+            'location': location,
+            'fullname': fullname
+        }
+
+        return user_profile
+
+    @staticmethod
     def extract_tweet_id(url: str):
         return url.split('/')[-1]
 
