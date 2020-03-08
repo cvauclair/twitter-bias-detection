@@ -91,7 +91,7 @@ class TwitterBaseDataset(Dataset):
 class TwitterCSVDataset(TwitterBaseDataset):
     columns = ['sentiment', 'tweetid', 'datetime', 'query_flag', 'username', 'tweet']
 
-    def __init__(self, filename):
+    def __init__(self, filename, cuda: bool = True):
         df = pd.read_csv(filename, encoding="ISO-8859-1", names=TwitterCSVDataset.columns)
         
         # Store tweets
@@ -103,6 +103,7 @@ class TwitterCSVDataset(TwitterBaseDataset):
         # self.sentiment = torch.cuda.LongTensor(np.hstack([negative, positive]))
 
         self.sentiments = df['sentiment'].values
+        self.cuda = cuda
 
     def __len__(self):
         return self.sentiments.shape[0]

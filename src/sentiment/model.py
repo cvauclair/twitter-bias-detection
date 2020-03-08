@@ -86,6 +86,7 @@ class SentimentBERT(pl.LightningModule):
     def validation_end(self, outputs):
         avg_loss = torch.stack([x['loss'] for x in outputs]).mean()
         avg_acc = torch.stack([x['acc'] for x in outputs]).mean()
+        print(f"[INFO] avg_acc = {avg_acc.item()}")
 
         tensorboard_logs = {'val_loss': avg_loss, 'val_acc': avg_acc}
         return {'loss': avg_loss, 'log': tensorboard_logs}
