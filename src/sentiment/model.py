@@ -54,7 +54,9 @@ class SentimentBERT(pl.LightningModule):
 
             print(f"[INFO] Training dataset size: {len(self.training_dataset)}")
             print(f"[INFO] Validation dataset size: {len(self.validation_dataset)}")
-            # print(f"[INFO] Prediction dataset size: {len(self.prediction_dataset)}")        
+            # print(f"[INFO] Prediction dataset size: {len(self.prediction_dataset)}")     
+            
+            self.data_loaded = True   
 
     def forward(self, batch):
         _, logits = self.bert(batch['input_ids'], attention_mask=batch['attention_mask'], labels=batch['sentiment'])
