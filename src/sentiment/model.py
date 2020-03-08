@@ -23,6 +23,7 @@ from pytorch_lightning.logging import TestTubeLogger
 
 # Pretrained BERT
 from transformers import BertTokenizer, BertForSequenceClassification, AdamW
+from transformers import DistilBertTokenizer, DistilBertForSequenceClassification
 
 # Datasets
 from dataset import TwitterCSVDataset, TwitterJSONDataset
@@ -50,7 +51,7 @@ class SentimentBERT(pl.LightningModule):
         print(f"[INFO] Prediction dataset size: {len(self.prediction_dataset)}")
 
         print(f"[{dt.datetime.now()}] Building model")
-        self.bert = BertForSequenceClassification.from_pretrained('bert-base-uncased', num_labels=2)
+        self.bert = DistilBertForSequenceClassification.from_pretrained('bert-base-uncased', num_labels=2)
 
     def forward(self, x):
         pass

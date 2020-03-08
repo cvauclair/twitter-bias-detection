@@ -9,11 +9,11 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-from transformers import BertTokenizer
+from transformers import DistilBertTokenizer
 
 MAX_LENGTH = 100
 
-tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
+tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-uncased', do_lower_case=True)
 
 # Preprocessing adapted from "How to fine-tune BERT with pytorch-lightning"
 # Reference: https://towardsdatascience.com/how-to-fine-tune-bert-with-pytorch-lightning-ba3ad2f928d2
@@ -93,6 +93,35 @@ class TwitterJSONDataset(Dataset):
     def __init__(self, filename):
         with open(filename, 'r') as f:
             self.tweets = json.load(f)
+
+    def __len__(self):
+        return len(self.tweets)
+
+    def __getitem__(self, index):
+        processed_tweet = process_tweet(self.tweets[index]['text'])
+
+        item = {
+            'url': self.tweets[index]['url'],       # Include URL to be able to add back sentiment to database
+            'input_ids': processed_tweet['input_ids'],
+            'attention_mask': processed_tweet['attention_mask'],
+            'token_type_ids': processed_tweet['token_type_ids']
+        }
+        
+        return item
+
+    @staticmethod
+    def collate(items):
+        batch = {
+            'input_ids': torch.cat([item['input_ids'] for item in items], dim=0),
+            'attention_mask': torch.cat([item['attention_mask'] for item in items], dim=0),
+            'token_type_ids': torch.cat([item['token_type_ids'] for item in items], dim=0)
+        }
+
+        return batch
+
+class TwitterListDataset(Dataset):
+    def __init__(self, tweets):
+        self.tweets = tweets
 
     def __len__(self):
         return len(self.tweets)
