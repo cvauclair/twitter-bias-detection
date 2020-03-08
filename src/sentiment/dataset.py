@@ -145,5 +145,3 @@ class TwitterListDataset(Dataset):
             'attention_mask': torch.cat([item['attention_mask'] for item in items], dim=0),
             'token_type_ids': torch.cat([item['token_type_ids'] for item in items], dim=0)
         }
-
-        return batch
