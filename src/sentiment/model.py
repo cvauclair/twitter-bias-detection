@@ -44,7 +44,7 @@ class SentimentBERT(pl.LightningModule):
         if not self.data_loaded:
             print(f"[{dt.datetime.now()}] Loading tweets dataset")
             dataset = TwitterCSVDataset(self.hparams.training_dataset)
-            self.prediction_dataset = test_dataset
+            # self.prediction_dataset = test_dataset
 
             training_dataset_size = int(len(dataset) * 0.8)
             [training_dataset, validation_dataset] = torch.utils.data.random_split(dataset, [training_dataset_size, len(dataset) - training_dataset_size])
@@ -54,7 +54,7 @@ class SentimentBERT(pl.LightningModule):
 
             print(f"[INFO] Training dataset size: {len(self.training_dataset)}")
             print(f"[INFO] Validation dataset size: {len(self.validation_dataset)}")
-            print(f"[INFO] Prediction dataset size: {len(self.prediction_dataset)}")        
+            # print(f"[INFO] Prediction dataset size: {len(self.prediction_dataset)}")        
 
     def forward(self, batch):
         _, logits = self.bert(batch['input_ids'], attention_mask=batch['attention_mask'], labels=batch['sentiment'])
@@ -242,9 +242,7 @@ def main(args):
     torch.manual_seed(0)
     np.random.seed(0)
 
-
     bert_wrapper = BERTWrapper()
-    # bert_wrapper.train(args)
     s = bert_wrapper.predict(version=args.version, tweets=["\nObama\u2019s own State Dept. was so concerned about conflicts of interest from Hunter Biden\u2019s role at Burisma that they raised it themselves while prepping the Ambassador for her confirmation. Yet our Democratic colleagues & Adam Schiff cry foul when we dare ask that same question.pic.twitter.com/jZ0UVItU3e\n"])
     print(s)
 
