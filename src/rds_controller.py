@@ -10,8 +10,9 @@ class RDSController:
             self.conn = pymysql.connect(config['rds']['host'], user=config['rds']['user'],
                                         passwd=config['rds']['password'], db=config['rds']['db_name'],
                                         connect_timeout=5)
-        except:
+        except pymysql.MySQLError as e:
             print("FAILURE: Failed to connect to server.")
+            print('Got error {!r}, errno is {}'.format(e, e.args[0]))
             sys.exit()
 
         print("SUCCESS: Connection to RDS mysql instance succeeded")
