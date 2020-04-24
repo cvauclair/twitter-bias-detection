@@ -17,7 +17,7 @@ def main(args):
 if __name__ == "__main__":
     # Read arguments
     parser = argparse.ArgumentParser(description="Training SentimentBERT")
-    parser.add_argument('-c', '--config', dest='config', type=str, required=True)
+    parser.add_argument('-c', '--config', dest='config', type=str, default=None)
     parser.add_argument('-v', '--version', dest='version', type=int, default=None)
     parser.add_argument('-p', '--patience', dest='patience', type=int, default=None)
     parser.add_argument('--test', action='store_true')
