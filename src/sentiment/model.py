@@ -1,7 +1,9 @@
 # Standard import
 import argparse
-import json
+import yaml
 import datetime as dt
+import glob
+import sys
 
 # PyTorch imports
 import torch
@@ -26,25 +28,25 @@ from transformers import BertTokenizer, BertForSequenceClassification, AdamW
 from transformers import DistilBertTokenizer, DistilBertForSequenceClassification
 
 # Datasets
-from sentiment.dataset import *
+from dataset import *
 
 class SentimentBERT(pl.LightningModule):
     name = 'sentiment_bert'
     
-    def __init__(self, config, test_dataset=None):
+    def __init__(self, hparams, test_dataset=None):
         super().__init__()
 
-        self.hparams = argparse.Namespace(**config)
+        self.hparams = hparams
 
         print(f"[{dt.datetime.now()}] Building model")
         self.bert = DistilBertForSequenceClassification.from_pretrained('distilbert-base-uncased', num_labels=2)
         self.data_loaded = False
 
     def load_data(self):
+        # Load data if not already loaded
         if not self.data_loaded:
             print(f"[{dt.datetime.now()}] Loading tweets dataset")
             dataset = TwitterCSVDataset(self.hparams.training_dataset)
-            # self.prediction_dataset = test_dataset
 
             training_dataset_size = int(len(dataset) * 0.8)
             [training_dataset, validation_dataset] = torch.utils.data.random_split(dataset, [training_dataset_size, len(dataset) - training_dataset_size])
@@ -176,6 +178,17 @@ class BERTWrapper(object):
 
         return early_stop_callback
 
+    def create_model(self, config_path, log_dir):
+        with open(config_path, 'r') as f:
+            config = yaml.load(f, Loader=yaml.Loader)
+        
+        # Save config for record keeping
+        with open(f"{log_dir}/config.yaml", 'w') as f:
+            yaml.dump(config, f, Dumper=yaml.Dumper)
+
+        # Create model
+        return SentimentBERT(argparse.Namespace(**config))
+
     def test(self, args):
         pass
 
@@ -192,22 +205,34 @@ class BERTWrapper(object):
         else:
             trainer = Trainer(max_nb_epochs=100, **trainer_args)
 
-        # Load config
+        # Load or create model
         if args.version is not None:
-            with open(f"{self.get_model_dir(trainer_args['logger'])}/config.json", 'r') as f:
-                config = json.load(f)
+            # Find checkpoint file
+            ckpt_files = glob.glob(f"{self.get_model_dir(trainer_args['logger'])}/*.ckpt")
+            if len(ckpt_files) == 0:
+                print(f"[WARNING] No checkpoint found for model version {args.version}, creating new model")
+
+                # If no checkpoints are found, attempt to create a new model using the specified config
+                try:
+                    model = self.create_model(args.config, self.get_model_dir(trainer_args['logger']))
+                except AttributeError as e:
+                    print(f"[ERROR] No config specified, cannot create new model")
+                    sys.exit()
+            else: 
+                ckpt_path = glob.glob(f"{self.get_model_dir(trainer_args['logger'])}/*.ckpt")[0]
+                
+                # Warn user if multiple checkpoints are found
+                if len(ckpt_files) > 1:
+                    print(f"[WARNING] Multiple checkpoints found for model version {args.version}, using checkpoint {ckpt_path}")
+
+                # Load model from checkpoint
+                print(f"[{dt.datetime.now()}] Loading model state from {ckpt_path}")
+                model = SentimentBERT.load_from_checkpoint(ckpt_path)
         else:
-            with open(args.config, 'r') as f:
-                config = json.load(f)
-            
-            # Save config for record keeping
-            with open(f"{self.get_model_dir(trainer_args['logger'])}/config.json", 'w') as f:
-                json.dump(config, f, indent=4)
+            # Create new model from config
+            model = self.create_model(args.config, self.get_model_dir(trainer_args['logger']))
 
-        # Create model
-        model = SentimentBERT(config)
-
-        # Train and predict
+        # Train model
         trainer.fit(model)
 
     def predict(self, tweets, version):
