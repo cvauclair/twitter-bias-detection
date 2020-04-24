@@ -1,0 +1,2 @@
+batch_size: 4
+training_dataset: "resource/sentiment140/training.1600000.processed.noemoticon.csv"
