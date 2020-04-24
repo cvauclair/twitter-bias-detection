@@ -26,7 +26,7 @@ from transformers import BertTokenizer, BertForSequenceClassification, AdamW
 from transformers import DistilBertTokenizer, DistilBertForSequenceClassification
 
 # Datasets
-from dataset import *
+from sentiment.dataset import *
 
 class SentimentBERT(pl.LightningModule):
     name = 'sentiment_bert'
@@ -54,7 +54,7 @@ class SentimentBERT(pl.LightningModule):
 
             print(f"[INFO] Training dataset size: {len(self.training_dataset)}")
             print(f"[INFO] Validation dataset size: {len(self.validation_dataset)}")
-            # print(f"[INFO] Prediction dataset size: {len(self.prediction_dataset)}")     
+            # print(f"[INFO] Prediction dataset size: {len(self.prediction_dataset)}")
             
             self.data_loaded = True   
 
@@ -210,7 +210,7 @@ class BERTWrapper(object):
         # Train and predict
         trainer.fit(model)
 
-    def predict(self, version, tweets):
+    def predict(self, tweets, version):
         # Create trainer
         trainer_args = {}
         trainer_args['logger'] = self.get_logger(SentimentBERT.name, version=version, test=True)
@@ -232,7 +232,8 @@ class BERTWrapper(object):
         for batch in dataloader:
             sentiment.append(model(batch))
         
-        all_sents = torch.stack(sentiment, dim=0)
+        all_sents = torch.cat(sentiment, dim=0)
+        print(all_sents)
         
         return [{'tweet': t, 'sentiment': all_sents[i].item()} for i, t in enumerate(tweets)]
 
