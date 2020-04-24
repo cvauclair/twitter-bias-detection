@@ -13,31 +13,45 @@ from transformers import DistilBertTokenizer
 
 MAX_LENGTH = 100
 
-tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-uncased', do_lower_case=True, )
-
 class TwitterBaseDataset(Dataset):
+    tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-uncased', do_lower_case=True)
+
     def __init__(self, tweets: list, sentiments: list = None, cuda: bool = True):
         self.cuda = cuda
 
-        self.tweets = tweets
+        self.tweets = [TwitterBaseDataset.preprocess_tweet(t) for t in tweets]
         if sentiments is not None:
             self.sentiments = sentiments
             assert len(self.tweets) == len(self.sentiments)
         else:
             self.sentiments = [0 for _ in self.tweets]
 
-    # Preprocessing adapted from "How to fine-tune BERT with pytorch-lightning"
+    @staticmethod
+    def preprocess_tweet(tweet):
+        words = tweet.split()
+        
+        def is_username(word):
+            return '@' in word
+
+        url_indicators = ['http', 'www']
+        def is_url(word):
+            return any([k in word for k in url_indicators])
+
+        filtered_words = list(filter(lambda w: not (is_url(w) or is_username(w)), words))
+        return " ".join(filtered_words)
+
+    # Processing adapted from "How to fine-tune BERT with pytorch-lightning"
     # Reference: https://towardsdatascience.com/how-to-fine-tune-bert-with-pytorch-lightning-ba3ad2f928d2
     # Code: https://gist.github.com/sobamchan/93ed747097898a75193096e0f91766f6#file-pl-bert-data-preprocessing-py
     def process_tweet(self, tweet):
-        inputs = tokenizer.encode_plus(tweet, add_special_tokens=True, max_length=100)
+        inputs = TwitterBaseDataset.tokenizer.encode_plus(tweet, add_special_tokens=True, max_length=100)
         input_ids, token_type_ids = inputs["input_ids"], inputs["token_type_ids"]
 
         attention_mask = [1] * len(input_ids)
 
         # Padd input 
         padding_length = MAX_LENGTH - len(input_ids)
-        pad_id = tokenizer.pad_token_id
+        pad_id = TwitterBaseDataset.tokenizer.pad_token_id
         input_ids = input_ids + ([pad_id] * padding_length)
         attention_mask = attention_mask + ([0] * padding_length)
         token_type_ids = token_type_ids + ([pad_id] * padding_length)
@@ -60,6 +74,12 @@ class TwitterBaseDataset(Dataset):
                 # 'token_type_ids': torch.cuda.LongTensor([token_type_ids])
             }
 
+        return processed_tweet
+
+    def get_processed_tweet(self, index, to_numpy: bool = False):
+        processed_tweet = self.process_tweet(self.tweets[index])
+        if to_numpy:
+            return processed_tweet['input_ids'].numpy()
         return processed_tweet
 
     def __len__(self):
@@ -95,7 +115,7 @@ class TwitterCSVDataset(TwitterBaseDataset):
         df = pd.read_csv(filename, encoding="ISO-8859-1", names=TwitterCSVDataset.columns)
         
         # Store tweets
-        self.tweets = df['tweet'].values
+        self.tweets = [TwitterBaseDataset.preprocess_tweet(t) for t in df['tweet'].values]
         
         # Store sentiment
         # negative = (df['sentiment'].values == 0).astype(int).reshape(-1,1)
@@ -113,7 +133,7 @@ class TwitterJSONDataset(TwitterBaseDataset):
         with open(filename, 'r') as f:
             tweets_meta = json.load(f)
         
-        self.tweets = [t['text'] for t in tweets_meta]
+        self.tweets = [TwitterBaseDataset.preprocess_tweet(t['text']) for t in tweets_meta]
         self.sentiments = [t['sentiment'] if 'sentiment' in t else 0 for t in tweets_meta]
 
     @staticmethod
