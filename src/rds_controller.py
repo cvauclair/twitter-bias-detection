@@ -59,6 +59,18 @@ class RDSController:
             self.conn.commit()
             print(f"SUCCESS: Creation of tweet with ID {tweet_id} succeeded")
 
+    def get_all_tweets(self):
+        tweets = []
+        with self.conn.cursor() as cur:
+            query = "SELECT id, content FROM tweets"
+            cur.execute(query)
+            self.conn.commit()
+        
+            for t in cur.fetchall():
+                tweets.append({'tweet_id': t[0], 'content': t[1]})
+
+        return tweets
+
     def set_tweet_sentiment(self, tweet_id, sentiment):
         with self.conn.cursor() as cur:
             query = (
