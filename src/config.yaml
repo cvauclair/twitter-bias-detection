@@ -4,3 +4,6 @@ scraper_configs:
   'oldest_date': None
   'checkpoint': None
   'accounts_file': accounts.json
+
+lda_configs:
+  'models_file': models.json

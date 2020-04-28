@@ -4,19 +4,21 @@ from scraper import Scraper
 import json
 import pymysql
 from rds_controller import RDSController
+from .topic_analysis.topic_analysis_controller import TopicAnalysisController
 
 
 class Pipeline:
     def __init__(self):
-        self.configs = self.get_scraper_configs()
+        self.scraper_configs = self.get_scraper_configs()
+        self.lda_configs = self.get_lda_configs()
         self.filename = self.build_filename()
 
         # Scraper
-        self.scraper = Scraper(num_pages=self.configs['num_pages'],
-                          include_retweets=self.configs['include_retweets'],
-                          checkpoint=self.configs['checkpoint'],
-                          oldest_date=self.configs['oldest_date'],
-                          output_filename=self.filename)
+        self.scraper = Scraper(num_pages=self.scraper_configs['num_pages'],
+                               include_retweets=self.scraper_configs['include_retweets'],
+                               checkpoint=self.scraper_configs['checkpoint'],
+                               oldest_date=self.scraper_configs['oldest_date'],
+                               output_filename=self.filename)
 
         # RDS Controller
         self.rds_controller = RDSController()
@@ -30,6 +32,16 @@ class Pipeline:
         with open('config.yaml', 'r') as yaml_stream:
             configs = yaml.safe_load(yaml_stream)
         return configs['scraper_configs']
+
+    @staticmethod
+    def get_lda_configs():
+        """
+        Get scraper configs from YAML file
+        :return: configs as a dict
+        """
+        with open('config.yaml', 'r') as yaml_stream:
+            configs = yaml.safe_load(yaml_stream)
+        return configs['lda_configs']
 
     # This needs to change because eventually we will have more than
     # one user per file
@@ -73,9 +85,9 @@ class Pipeline:
         # Scraping of tweets
         # ----------------------------------------------
 
-        accounts = self.read_json_file(self.configs['accounts_file'])
+        accounts = self.read_json_file(self.scraper_configs['accounts_file'])
 
-        all_tweets = []
+        all_tweets = {}
         for u in accounts:
             # Check if user exists. If not, create user.
             user_id = self.scraper.extract_user_id(u['username'], None)
@@ -100,12 +112,11 @@ class Pipeline:
                     continue
 
             user_tweets = self.scraper.scrape_tweets(u['username'])
+
             if user_tweets:
-                all_tweets.extend(self.scraper.scrape_tweets(u['username']))
+                all_tweets[u['username']] = user_tweets
 
         self.write_output(tweets=all_tweets)
-
-        # scraped_tweets = self.read_json_file(self.filename)
 
         # ----------------------------------------------
         # STAGE 2
@@ -117,6 +128,21 @@ class Pipeline:
         # STAGE 3
         # LDA
         # ----------------------------------------------
+        lda_controller = TopicAnalysisController()
+
+        #models = self.read_json_file(self.lda_configs['accounts_file'])
+        models = ['realDonaldTrump']
+        for u in accounts:
+            if u['username'] in models:
+                user_tweets = all_tweets[u['username']]
+                user_tweets_content = [user_tweets[i][1] for i in range(len(user_tweets))]
+                user_tweets_id = [user_tweets[i][0] for i in range(len(user_tweets))]
+                if user_tweets:
+                    tweets_topics = lda_controller.compute_topic_id_for_tweets(tweets= user_tweets_content, username= u['username'])
+
+                for id, topic in user_tweets_id, tweets_topics:
+                    RDSController.set_tweet_topic(tweet_id= id, topic_id= topic)
+
 
 
         # ----------------------------------------------
@@ -126,17 +152,6 @@ class Pipeline:
 
 
         # TODO: This is all changing
-        # for t in all_tweets:
-        #     self.rds_controller.create_tweet(id=id,
-        #                                 author_id=tweet_author,
-        #                                 tweeted_on=t['originalDate'],
-        #                                 posted_by_id=self.configs['twitter_username'],
-        #                                 is_retweet=t['isRetweet'],
-        #                                 num_likes=t['num_likes'],
-        #                                 num_retweets=t['num_retweets'],
-        #                                 num_replies=t['num_replies'],
-        #                                 content=t['text'])
-        #
 
 # ONLY HERE FOR TESTING
 if __name__ == '__main__':

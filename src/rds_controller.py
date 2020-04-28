@@ -25,6 +25,22 @@ class RDSController:
             print("SUCCESS: Successfully fetched user with id:", user_id)
             return user
 
+    def get_all_users(self):
+        with self.conn.cursor() as cur:
+            query = ('SELECT * FROM users')
+            cur.execute(query)
+            user = cur.fetchall()
+            print("SUCCESS: Successfully fetched user with id:")
+            return user
+
+    def get_tweets_from_user(self, author_username):
+        with self.conn.cursor() as cur:
+            query = ('SELECT id, content FROM tweets WHERE authorUsername = {author_username}').format(author_username=author_username)
+            cur.execute(query)
+            content = cur.fetchall()
+            print("SUCCESS: Successfully fetched tweets from:", author_username)
+            return content
+
     def create_topic(self, name):
         with self.conn.cursor() as cur:
             query = 'INSERT INTO topics (topic) VALUES ("{}")'.format(name)
@@ -106,3 +122,7 @@ class RDSController:
             print(
                 "SUCCESS: Set bias of topic with {topic_id} to user with ID {user_id} with score {bias_score} succeeded".format(
                     topic_id=topic_id, user_id=user_id, bias_score=bias_score))
+
+r = RDSController()
+u = r.get_all_users()[0]['id']
+print(u)
