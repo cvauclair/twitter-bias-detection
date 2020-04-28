@@ -4,3 +4,6 @@ schedule
 yaml
 pymysql
 Django==3.0.5
+pytorch
+pytorch-lightning
+transformers

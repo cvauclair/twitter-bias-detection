@@ -142,3 +142,9 @@ dmypy.json
 
 # Configuration
 src/config.py
+
+# Logs
+logs/*
+
+# vscode
+.vscode/

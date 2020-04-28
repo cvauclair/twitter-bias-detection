@@ -184,5 +184,17 @@ class Pipeline:
 
 # ONLY HERE FOR TESTING
 if __name__ == '__main__':
-    p = Pipeline()
-    p.run_pipeline()
+    parser = argparse.ArgumentParser("Bias Inference Pipeline")
+    parser.add_argument('-c', '--config', dest='config_path', type=str, default='config.yaml')
+    parser.add_argument('-a', '--account', dest='account', type=str, default=None)
+    parser.add_argument('--accounts_path', dest='accounts_path', type=str, default='accounts.json')
+    parser.add_argument('-r', '--recompute', action='store_true')
+    args = parser.parse_args()
+    
+    p = Pipeline(args.config_path)
+
+    if args.account is None:
+        accounts = Pipeline.read_json_file(args.accounts_path)
+        p.run_pipeline(accounts)
+    else:
+        p.run_pipeline([args.account], args.recompute)

@@ -72,7 +72,7 @@ class Scraper:
     @staticmethod
     def is_tweet_old(tweet: str, oldest_date: str):
         # Compares if tweet date is older than oldest_date
-        split_date = tweet['originalDate'].split(" - ")
+        split_date = tweet['tweeted_on'].split(" - ")
         calendar = pdt.Calendar()
         return calendar.parseDT(split_date[1]) < calendar.parseDT(oldest_date)
 
@@ -152,17 +152,17 @@ class Scraper:
 
         # Extract tweets
         tweets = [{
-            'posted_by_id': user_id,
-            'posted_by_username': username,
-            'author_username': self.extract_author_username(self.get_url(t)),
             'tweet_id': self.extract_tweet_id(self.get_url(t)),
-            'url': TWITTER_ROOT_URL + self.get_url(t),
-            'originalDate': self.get_date(t),
-            'text': self.get_text(t),
-            'num_replies': self.get_num_replies(t),
-            'num_retweets': self.get_num_retweets(t),
+            'author_username': self.extract_author_username(self.get_url(t)),
+            'tweeted_on': self.get_date(t),
+            'posted_by_id': user_id,
+            'is_retweet': t.div.has_attr('data-retweeter'),
             'num_likes': self.get_num_likes(t),
-            'isRetweet': t.div.has_attr('data-retweeter')
+            'num_retweets': self.get_num_retweets(t),
+            'num_replies': self.get_num_replies(t),
+            'content': self.get_text(t),
+            # 'posted_by_username': username,
+            # 'url': TWITTER_ROOT_URL + self.get_url(t),
         } for t in page_soup.find_all('li', {'data-item-type': 'tweet'}) if include(t)]
 
         # Remove tweets that are older than oldest_date
@@ -171,7 +171,7 @@ class Scraper:
         filtered_tweets = []
         if oldest_date is not None:
             for tweet in tweets:
-                if tweet['isRetweet']:
+                if tweet['is_retweet']:
                     filtered_tweets.append(tweet)
                 elif self.is_tweet_old(tweet, oldest_date):
                     fast_exit = True
