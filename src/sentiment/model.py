@@ -4,6 +4,7 @@ import yaml
 import datetime as dt
 import glob
 import sys
+import os
 
 # PyTorch imports
 import torch
@@ -28,7 +29,7 @@ from transformers import BertTokenizer, BertForSequenceClassification, AdamW
 from transformers import DistilBertTokenizer, DistilBertForSequenceClassification
 
 # Datasets
-from dataset import *
+from sentiment.dataset import *
 
 class SentimentBERT(pl.LightningModule):
     name = 'sentiment_bert'
@@ -48,17 +49,16 @@ class SentimentBERT(pl.LightningModule):
             print(f"[{dt.datetime.now()}] Loading tweets dataset")
             dataset = TwitterCSVDataset(self.hparams.training_dataset)
 
-            training_dataset_size = int(len(dataset) * 0.8)
-            [training_dataset, validation_dataset] = torch.utils.data.random_split(dataset, [training_dataset_size, len(dataset) - training_dataset_size])
-
-            self.training_dataset = training_dataset
-            self.validation_dataset = validation_dataset
+            validation_dataset_size = int(len(dataset) * 0.15)
+            testing_dataset_size = int(len(dataset) * 0.05)
+            sizes = [len(dataset) - validation_dataset_size - testing_dataset_size, validation_dataset_size, testing_dataset_size]
+            self.training_dataset, self.validation_dataset, self.testing_dataset = torch.utils.data.random_split(dataset, sizes)
 
             print(f"[INFO] Training dataset size: {len(self.training_dataset)}")
             print(f"[INFO] Validation dataset size: {len(self.validation_dataset)}")
-            # print(f"[INFO] Prediction dataset size: {len(self.prediction_dataset)}")
+            print(f"[INFO] Testing dataset size: {len(self.testing_dataset)}")
             
-            self.data_loaded = True   
+            self.data_loaded = True
 
     def forward(self, batch):
         _, logits = self.bert(batch['input_ids'], attention_mask=batch['attention_mask'], labels=batch['sentiment'])
@@ -96,10 +96,35 @@ class SentimentBERT(pl.LightningModule):
         return {'loss': avg_loss, 'log': tensorboard_logs}
 
     def test_step(self, batch, batch_nb):
-        pass
+        loss, logits = self.bert(batch['input_ids'], attention_mask=batch['attention_mask'], labels=batch['sentiment'])
+        
+        y_hat = torch.argmax(logits, dim=1).reshape(-1,1)
+        acc = (batch['sentiment'] == y_hat).sum().float()/batch['sentiment'].shape[0]
+        spec = ((batch['sentiment'] == y_hat) & (y_hat == 1)).sum()/(y_hat == 1).sum().float()
+        sens = ((batch['sentiment'] == y_hat) & (y_hat == 0)).sum()/(y_hat == 0).sum().float()
 
-    def test_end(self, outputs):
-        pass
+        logs = {
+            'loss': loss,
+            'acc': acc,
+            'specificity': spec,
+            'sensitivity': sens
+        }
+
+        return logs
+
+    def test_epoch_end(self, outputs):
+        avg_loss = torch.stack([x['loss'] for x in outputs]).mean()
+        avg_acc = torch.stack([x['acc'] for x in outputs]).mean()
+        avg_specificity = torch.stack([x['specificity'] for x in outputs]).mean()
+        avg_sensitivity = torch.stack([x['sensitivity'] for x in outputs]).mean()
+        print(f"[INFO] avg_acc = {avg_acc.item()}")
+        print(f"[INFO] avg_specificity = {avg_specificity.item()}")
+        print(f"[INFO] avg_sensitivity = {avg_sensitivity.item()}")
+        test_results = {'accuracy': avg_acc, 'specificity': avg_specificity, 'sensitivity': avg_sensitivity}
+        
+        tensorboard_logs = {'val_loss': avg_loss, 'val_acc': avg_acc}
+
+        return {'loss': avg_loss, 'log': tensorboard_logs, **test_results}
 
     def configure_optimizers(self):
         # Get optimizer parameters from BERT model
@@ -119,24 +144,28 @@ class SentimentBERT(pl.LightningModule):
         optimizer = AdamW(optimizer_grouped_parameters, lr=2e-6,)
         return [optimizer]
 
-    @pl.data_loader
     def train_dataloader(self):
         self.load_data()
         return DataLoader(self.training_dataset, batch_size=self.hparams.batch_size, shuffle=True, collate_fn=TwitterCSVDataset.collate)
 
-    @pl.data_loader
     def val_dataloader(self):
         self.load_data()
         return DataLoader(self.validation_dataset, batch_size=self.hparams.batch_size, shuffle=False, collate_fn=TwitterCSVDataset.collate)
 
-    @pl.data_loader
     def test_dataloader(self):
-        return DataLoader(self.prediction_dataset, batch_size=self.hparams.batch_size, shuffle=False, collate_fn=TwitterJSONDataset.collate)
+        self.load_data()
+        return DataLoader(self.testing_dataset, batch_size=self.hparams.batch_size, shuffle=False, collate_fn=TwitterJSONDataset.collate)
 
 # ================================================================
 # Model Wrapper
 # ================================================================
 class BERTWrapper(object):
+    def __init__(self, model_path=None):
+        if model_path is not None:
+            self.model = SentimentBERT.load_from_checkpoint(model_path).cuda()
+        else:
+            self.model = None
+
     def save_config(self, config, path):
         with open(path, 'w') as f:
             json.dump(config, f)
@@ -178,7 +207,8 @@ class BERTWrapper(object):
 
         return early_stop_callback
 
-    def create_model(self, config_path, log_dir):
+    @staticmethod
+    def new_model(self, config_path, log_dir):
         with open(config_path, 'r') as f:
             config = yaml.load(f, Loader=yaml.Loader)
         
@@ -187,7 +217,9 @@ class BERTWrapper(object):
             yaml.dump(config, f, Dumper=yaml.Dumper)
 
         # Create model
-        return SentimentBERT(argparse.Namespace(**config))
+        model =  SentimentBERT(argparse.Namespace(**config)).cuda()
+
+        return BERTWrapper(model)
 
     def test(self, args):
         pass
@@ -201,7 +233,7 @@ class BERTWrapper(object):
         trainer_args['gpus'] = [0]
 
         if args.test:
-            trainer = Trainer(max_nb_epochs=1, train_percent_check=0.001, val_percent_check=0.001, **trainer_args)
+            trainer = Trainer(max_nb_epochs=1, train_percent_check=0.001, val_percent_check=0.001, test_percent_check=0.001, **trainer_args)
         else:
             trainer = Trainer(max_nb_epochs=100, **trainer_args)
 
@@ -209,6 +241,7 @@ class BERTWrapper(object):
         if args.version is not None:
             # Find checkpoint file
             ckpt_files = glob.glob(f"{self.get_model_dir(trainer_args['logger'])}/*.ckpt")
+            ckpt_files.sort(reverse=True, key=os.path.getmtime)
             if len(ckpt_files) == 0:
                 print(f"[WARNING] No checkpoint found for model version {args.version}, creating new model")
 
@@ -223,7 +256,7 @@ class BERTWrapper(object):
                 
                 # Warn user if multiple checkpoints are found
                 if len(ckpt_files) > 1:
-                    print(f"[WARNING] Multiple checkpoints found for model version {args.version}, using checkpoint {ckpt_path}")
+                    print(f"[WARNING] Multiple checkpoints found for model version {args.version}, using latest checkpoint {ckpt_path}")
 
                 # Load model from checkpoint
                 print(f"[{dt.datetime.now()}] Loading model state from {ckpt_path}")
@@ -233,32 +266,23 @@ class BERTWrapper(object):
             model = self.create_model(args.config, self.get_model_dir(trainer_args['logger']))
 
         # Train model
-        trainer.fit(model)
+        if not args.eval:
+            trainer.fit(model)
+        trainer.test(model)
 
-    def predict(self, tweets, version):
-        # Create trainer
-        trainer_args = {}
-        trainer_args['logger'] = self.get_logger(SentimentBERT.name, version=version, test=True)
-        trainer_args['checkpoint_callback'] = self.get_checkpoint_callback(model_dir=self.get_model_dir(trainer_args['logger']))
-        trainer_args['gpus'] = [0]
-
-        # Load config
-        with open(f"{self.get_model_dir(trainer_args['logger'])}config.json", 'r') as f:
-            config = json.load(f)
-
-        # Create model
-        model = SentimentBERT(config).cuda()
+    def predict(self, tweets):
+        if self.model is None:
+            raise Exception("No model specified")
 
         # Predict
         dataset = TwitterBaseDataset(tweets, cuda=True)
-        dataloader = DataLoader(dataset, batch_size=config['batch_size'], shuffle=False, collate_fn=TwitterBaseDataset.collate)
+        dataloader = DataLoader(dataset, batch_size=self.model.hparams.batch_size, shuffle=False, collate_fn=TwitterBaseDataset.collate)
 
         sentiment = []
         for batch in dataloader:
-            sentiment.append(model(batch))
+            sentiment.append(self.model(batch))
         
         all_sents = torch.cat(sentiment, dim=0)
-        print(all_sents)
         
         return [{'tweet': t, 'sentiment': all_sents[i].item()} for i, t in enumerate(tweets)]
 
@@ -282,5 +306,6 @@ if __name__ == "__main__":
     parser.add_argument('-v', '--version', dest='version', type=int, default=None)
     parser.add_argument('-p', '--patience', dest='patience', type=int, default=None)
     parser.add_argument('--test', action='store_true')
+    parser.add_argument('--eval', action='store_true')
     args = parser.parse_args()
     main(args)

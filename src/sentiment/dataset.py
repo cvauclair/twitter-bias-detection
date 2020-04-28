@@ -14,6 +14,9 @@ from transformers import DistilBertTokenizer
 MAX_LENGTH = 100
 
 class TwitterBaseDataset(Dataset):
+    """
+        Base class that represents a dataset of tweets. Designed to be used with a DistilBERT model.
+    """
     tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-uncased', do_lower_case=True)
 
     def __init__(self, tweets: list, sentiments: list = None, cuda: bool = True):
