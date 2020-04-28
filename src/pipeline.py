@@ -3,7 +3,7 @@ import argparse
 from pprint import pprint
 
 import yaml
-from scraper import Scraper
+from scraper import Scraper, Target
 import json
 import pymysql
 from rds_controller import RDSController
@@ -82,33 +82,25 @@ class Pipeline:
         for u in accounts:
             # Check if user exists. If not, create user.
             username = u['username'] if type(u) == dict else u
-            user_id = self.scraper.extract_user_id(username, None)
+
+            target = Target(username)
+            user_id = target.get_user_id()
+
             user = self.rds_controller.get_user(user_id)
 
             if len(user) == 0:
                 try:
-                    user_profile = self.scraper.extract_user_profile(self.scraper, username)
-                    self.rds_controller.create_user(
-                        user_profile['id'],
-                        user_profile['username'],
-                        user_profile['followers_count'],
-                        user_profile['following_count'],
-                        user_profile['tweets_count'],
-                        user_profile['bio'],
-                        user_profile['location'],
-                        user_profile['fullname']
-                    )
+                    user_profile = target.get_profile()
+                    self.rds_controller.create_user(**user_profile)
+
                 except pymysql.err.IntegrityError as err:
                     print(f"[Error] Unable to create user {user_profile['username']} in RDS")
                     print(format(err))
                     continue
 
-            user_tweets = self.scraper.scrape_tweets(username)
-            if user_tweets:
-                scraped_tweets.extend(self.scraper.scrape_tweets(username))
-
-        self.write_output(tweets=scraped_tweets)
-        # scraped_tweets = self.read_json_file(self.filename)
+            # Get the date of the most recent tweet in the DB
+            latest_date = self.rds_controller.get_latest_tweet_date(user_id)
+            scraped_tweets += self.scraper.scrape_target(target, latest_date)
 
         # Update DB
         print(f"[{dt.datetime.now()}] Uploading scraped tweets to RDS database")
@@ -152,7 +144,7 @@ class Pipeline:
 
         # ----------------------------------------------
         # STAGE 4
-        # Saving tweets to RDS
+        # Bias Inference
         # ----------------------------------------------
 
 
