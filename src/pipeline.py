@@ -123,21 +123,29 @@ class Pipeline:
         # BERT
         # ----------------------------------------------
         print(f"[{dt.datetime.now()}] Computing tweets sentiment")
+
+        if recompute:
+            all_tweets = self.rds_controller.get_all_tweets()
+        else:
+            all_tweets = scraped_tweets
+
+        print(f"[DEBUG] num tweets to analyze sentiment: {len(all_tweets)}")
+
         try:
-            tweet_sent = self.bert_wrapper.predict([t['content'] for t in scraped_tweets])
+            tweet_sent = self.bert_wrapper.predict([t['content'] for t in all_tweets])
         except Exception as e:
             print(f"[ERROR] Could not predict tweet sentiment, no sentiment computed")
             print(e)
             tweet_sent = []
 
-        for i, tweet in enumerate(scraped_tweets):
+        for i, tweet in enumerate(all_tweets):
             tweet['sentiment'] = tweet_sent[i]['sentiment']
 
-        pprint(scraped_tweets)
+        pprint(all_tweets)
 
         # Update tweet db
         print(f"[{dt.datetime.now()}] Updating tweets sentiment in database")
-        for tweet in scraped_tweets:
+        for tweet in all_tweets:
             self.rds_controller.set_tweet_sentiment(
                 tweet_id=tweet['tweet_id'], 
                 sentiment=tweet['sentiment']
