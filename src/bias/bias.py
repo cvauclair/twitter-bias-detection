@@ -16,6 +16,20 @@ class Bias(object):
         self.alpha = alpha0
         self.beta = beta0
 
+    def export(self):
+        """
+            Export the bias information as a dictionary
+            :return: bias, variance and distributions parameters in dictionary
+        """
+        data = {
+            'bias': self.get_bias(), 
+            'variance': self.get_bias_variance(), 
+            'alpha': self.alpha,
+            'beta': self.beta
+        }
+
+        return data
+
     def get_bias_distribuion(self):
         """
             Get the parameters of the bias distribution (i.e.: alpha and beta parameters).
@@ -29,6 +43,13 @@ class Bias(object):
             :return: bias as float
         """
         return self.alpha/(self.alpha + self.beta)
+
+    def get_bias_variance(self):
+        """
+            Get the bias variance (i.e.: variance of a beta distribution).
+            :return: bias variance as float
+        """
+        return (self.alpha * self.beta)/(((self.alpha + self.beta)**2) * (self.alpha + self.beta + 1))
 
     def naive_infer(self, sentiments: list):
         """

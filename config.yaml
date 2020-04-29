@@ -8,6 +8,7 @@ sentiment_config:
 lda_config:
   'model_path': 'resource/models/lda/{}/model'
   'dictionary_path': 'resource/models/lda/{}/dictionary'
+  'models_file': 'resource/models/lda/user_models.json'
 inference_config:
-  'specificity': 0.9
-  'sensitivity': 0.9
+  'specificity': 0.86
+  'sensitivity': 0.86

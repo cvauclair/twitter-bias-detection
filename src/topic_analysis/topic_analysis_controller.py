@@ -24,6 +24,7 @@ class TopicAnalysisController(object):
             self.dictionary = Dictionary.load(dictionary_path.format(username=username))
         else:
             self.dictionary = None
+            
     def compute_topic_id_for_tweets(self, tweets):
 
         lda_helper = LDAHelper()
