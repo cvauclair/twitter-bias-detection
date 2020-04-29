@@ -3,6 +3,8 @@ import pymysql
 import json
 from config import config
 
+import datetime as dt
+
 class RDSController:
     def __init__(self):
         try:
@@ -51,12 +53,12 @@ class RDSController:
             self.conn.commit()
             print(f"SUCCESS: Successfully added new topic: {name}")
 
-    def create_user(self, user_id, handle, num_followers, num_following, num_tweets, bio, location,
+    def create_user(self, user_id, username, num_followers, num_following, num_tweets, bio, location,
                     fullname, photo_url=None):
         with self.conn.cursor() as cur:
             query = (
-                'INSERT INTO users (id, handle, followersCount, followingCount, tweetsCount, bio, location, photoURL, fullname) '
-                f'VALUES ("{user_id}", "{handle}", "{num_followers}", "{num_following})", "{num_tweets}", "{bio}", "{location}", "{photo_url}", "{fullname}")'
+                'INSERT INTO users (id, username, followersCount, followingCount, tweetsCount, bio, location, photoURL, fullname) '
+                f'VALUES ("{user_id}", "{username}", "{num_followers}", "{num_following})", "{num_tweets}", "{bio}", "{location}", "{photo_url}", "{fullname}")'
             )
             
             cur.execute(query)
@@ -86,6 +88,25 @@ class RDSController:
                 tweets.append({'tweet_id': t[0], 'content': t[1]})
 
         return tweets
+    def get_latest_tweet_date(self, user_id):
+        with self.conn.cursor() as cur:
+            query = f"""
+                SELECT tweetedOn
+                FROM tweets
+                WHERE postedById = {user_id}
+            """
+
+            cur.execute(query)
+            tweet_dates = cur.fetchall()
+            
+            self.conn.commit()
+
+        if len(tweet_dates) == 0:
+            return None
+
+        tweet_dates = [dt.datetime.strptime(d[0], "%I:%M %p - %d %b %Y") for d in tweet_dates]
+
+        return max(tweet_dates)
 
     def set_tweet_sentiment(self, tweet_id, sentiment):
         with self.conn.cursor() as cur:

@@ -5,6 +5,8 @@ scraper_config:
   'checkpoint': None
 sentiment_config:
   'model_path': 'resource/models/sentiment/bert_model.ckpt'
+lda_config:
+  'models_file': models.json
 inference_config:
   'specificity': 0.9
   'sensitivity': 0.9
