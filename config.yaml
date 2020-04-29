@@ -4,7 +4,7 @@ scraper_config:
   'oldest_date': None
   'checkpoint': None
 sentiment_config:
-  'model_path': 'logs/tests/sentiment_bert/version_1/_ckpt_epoch_0_v2.ckpt'
+  'model_path': 'resource/models/sentiment/bert_model.ckpt'
 inference_config:
   'specificity': 0.9
   'sensitivity': 0.9

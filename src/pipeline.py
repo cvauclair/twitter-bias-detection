@@ -8,7 +8,7 @@ import json
 import pymysql
 from rds_controller import RDSController
 from sentiment.model import BERTWrapper
-from .topic_analysis.topic_analysis_controller import TopicAnalysisController
+from topic_analysis.topic_analysis_controller import TopicAnalysisController
 
 class Pipeline:
     def __init__(self, config_path):
@@ -160,19 +160,22 @@ class Pipeline:
 
         lda_controller = TopicAnalysisController()
 
+        print(f"[{dt.datetime.now()}] Computing tweets topics")
         models = ['realDonaldTrump']
         for u in accounts:
-            if u['username'] in models:
-                user_tweets = [t for t in scraped_tweets if i['username'] == u['username']]
+            username = u['username'] if type(u) == dict else u
+            if username in models:
+                user_tweets = list(filter(lambda tweet: tweet['author_username'] == username, scraped_tweets))
                 user_tweets_content = [t['content'] for t in user_tweets]
-                user_tweets_id = [t['id'] for t in user_tweets]
+                user_tweets_id = [t['tweet_id'] for t in user_tweets]
 
                 if user_tweets:
                     # This happens per user
-                    tweets_topics = lda_controller.compute_topic_id_for_tweets(tweets=user_tweets_content, username= u['username'])
+                    tweets_topics = lda_controller.compute_topic_id_for_tweets(tweets=user_tweets_content, username=username)
 
-                for id, topic in user_tweets_id, tweets_topics:
-                    RDSController.set_tweet_topic(tweet_id= id, topic_id= topic)
+                # for id, topic in user_tweets_id, tweets_topics:
+                # for i in range(len(user_tweets)):
+                #     self.rds_controller.set_tweet_topic(tweet_id=user_tweets[i]['tweet_id'], topic_id=tweets_topics[i])
 
         # ----------------------------------------------
         # STAGE 4

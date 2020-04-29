@@ -11,14 +11,14 @@ from gensim.corpora.dictionary import Dictionary
 import seaborn as sns
 import pyLDAvis.gensim
 import matplotlib.pyplot as plt
-from .text_preprocessing import LDAHelper
-from ..rds_controller import RDSController
+from topic_analysis.text_preprocessing import LDAHelper
 
 class TopicAnalysisController:
 
     def compute_topic_id_for_tweets(self, tweets, username):
-        model = models.LdaModel.load(("./LDAmodel_{}/LDAmodel_{}").format(username, username))
-        dictionary = Dictionary.load(("./LDAmodel_{}/dictionary_{}").format(username, username))
+        model = models.LdaModel.load(f"resource/models/lda/{username}/model")
+        dictionary = Dictionary.load(f"resource/models/lda/{username}/dictionary")
+
         lda_helper = LDAHelper()
         corpus_exp = [lda_helper.preprocess_without_LS(t) for t in tweets]
         bow_corpus = [dictionary.doc2bow(text) for text in corpus_exp]
@@ -39,6 +39,7 @@ class TopicAnalysisController:
         topics = self.get_most_probable_topic_id(prob_distributions)
         return topics
 
+    
     def get_most_probable_topic_id(self, prob_distributions):
         result = []
         for p in prob_distributions:

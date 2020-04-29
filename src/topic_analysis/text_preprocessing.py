@@ -5,7 +5,7 @@ from string import punctuation
 from nltk.stem import WordNetLemmatizer, SnowballStemmer
 from nltk.stem.porter import *
 import gensim
-
+import string
 
 class LDAHelper:
     """
