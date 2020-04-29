@@ -46,6 +46,3 @@ class TestStringMethods(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-
-# RDSController.create_topic("a new topic")
-# print("didn't crash")
