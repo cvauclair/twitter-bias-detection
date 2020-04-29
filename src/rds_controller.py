@@ -32,6 +32,13 @@ class RDSController:
             self.conn.commit()
             print("SUCCESS: Successfully added new topic:", name)
 
+    def delete_topic(self, name):
+        with self.conn.cursor() as cur:
+            query = 'DELETE FROM topics WHERE topic="{}"'.format(name)
+            cur.execute(query)
+            self.conn.commit()
+            print("SUCCESS: Successfully deleted topic:", name)
+
     def create_user(self, id, handle, num_followers, num_following, num_tweets, bio, location,
                     fullname, photo_url=None):
         with self.conn.cursor() as cur:
@@ -43,6 +50,13 @@ class RDSController:
             cur.execute(query)
             self.conn.commit()
             print("SUCCESS: Creation of user with ID {} succeeded".format(id))
+
+    def delete_user(self, id):
+        with self.conn.cursor() as cur:
+            query = 'DELETE FROM users WHERE id="{}"'.format(id)
+            cur.execute(query)
+            self.conn.commit()
+            print("SUCCESS: Successfully deleted user with ID:", name)
 
     def create_tweet(self, id, author_username, tweeted_on, posted_by_id, is_retweet, num_likes, num_retweets,
                      num_replies, content=None, sentiment=None):
