@@ -1,5 +1,6 @@
 from bs4 import BeautifulSoup as soup
 
+import datetime as dt
 import argparse
 import sys, traceback
 import json
@@ -9,8 +10,96 @@ import scraper_utils
 
 TWITTER_ROOT_URL = 'https://twitter.com'
 
+class Target(object):
+    def __init__(self, username):
+        self.username = username
+        
+        # Init user
+        twitter_user_url = f"{TWITTER_ROOT_URL}/{self.username}"
+        html = scraper_utils.get_page(twitter_user_url)
+        page_soup = soup(html, 'html.parser')
 
-class Scraper:
+        profile_nav = page_soup.find('div', {'role': 'navigation'})
+        user_id = profile_nav['data-user-id']
+
+        try:
+            # Get counts of tweets, following, and followers
+            num_tweets, num_following, num_followers = [
+                profile_nav['data-count']
+                for profile_nav in page_soup.find_all('span', {'class': 'ProfileNav-value'}, limit=3)
+            ]
+        except:
+            num_tweets, num_following, num_followers = 0, 0, 0
+
+        try:
+            # Get bio
+            bio = page_soup.find('p', {'class': 'ProfileHeaderCard-bio u-dir'}).text
+        except:
+            bio = ""
+
+        try:
+            # Get location
+            location = page_soup.find('span', {'class': 'ProfileHeaderCard-locationText u-dir'}).text
+        except:
+            location = ""
+        
+        try:
+            # Get full name
+            fullname = page_soup.find('a', {'class': 'ProfileHeaderCard-nameLink u-textInheritColor js-nav'}).text
+        except:
+            fullname = ""
+
+        self.profile = {
+            'user_id': user_id,
+            'username': username,
+            'num_tweets': num_tweets,
+            'num_following': num_following,
+            'num_followers': num_followers,
+            'bio': bio,
+            'location': location,
+            'fullname': fullname
+        }
+
+        self.next_page_soup = page_soup
+        self.page_counter = 0
+        self.ptr = None
+
+    def get_profile(self):
+        return self.profile
+
+    def get_user_id(self):
+        return self.profile['user_id']
+
+    def get_next_page_soup(self):
+        if self.next_page_soup is None:
+            return None
+
+        # Set the current page soup to be returned
+        current_page_soup = self.next_page_soup
+
+        # Ptr to next page of tweets
+        if self.page_counter == 0:
+            ptr = current_page_soup.find("div", {"class": "stream-container"})["data-min-position"]
+        else:
+            ptr = self.ptr
+
+        # Prepare the next page soup
+        raw_data = json.loads(scraper_utils.get_page(
+            f'https://twitter.com/i/profiles/show/{self.username}/timeline/tweets?include_available_features=1&include_entities=1&max_position={ptr}&reset_error_state=false'
+        ))
+        self.ptr = raw_data['min_position']
+
+        if not raw_data["has_more_items"] and not raw_data["min_position"]:
+            print("[INFO] No more tweets returned")
+            self.next_page_soup = None
+        else:
+            self.next_page_soup = soup(raw_data['items_html'], 'html.parser')
+
+        self.page_counter += 1
+
+        return current_page_soup
+
+class Scraper(object):
     def __init__(self,
                  num_pages: int,
                  include_retweets: bool,
@@ -72,7 +161,7 @@ class Scraper:
     @staticmethod
     def is_tweet_old(tweet: str, oldest_date: str):
         # Compares if tweet date is older than oldest_date
-        split_date = tweet['originalDate'].split(" - ")
+        split_date = tweet['tweeted_on'].split(" - ")
         calendar = pdt.Calendar()
         return calendar.parseDT(split_date[1]) < calendar.parseDT(oldest_date)
 
@@ -81,66 +170,10 @@ class Scraper:
         return url.split('/')[-3]
 
     @staticmethod
-    def extract_user_id(username: str, page_soup):
-        twitter_user_url = f'{TWITTER_ROOT_URL}/{username}'
-
-        if page_soup is None:
-            html = scraper_utils.get_page(twitter_user_url)
-            page_soup = soup(html, 'html.parser')
-
-            # Check for error on twitter page
-            if page_soup.find("div", {"class": "errorpage-topbar"}):
-                print(f"[Error] Invalid username {username}")
-                sys.exit(1)
-
-        # get user id
-        profile_nav = page_soup.find('div', {'role': 'navigation'})
-        if profile_nav is None:
-            print(f"[Error] Unable to locate user id for {username}")
-            sys.exit(1)
-
-        return profile_nav['data-user-id']
-
-    @staticmethod
-    # Method does not scrape for image yet
-    def extract_user_profile(self, username: str):
-        twitter_user_url = f'{TWITTER_ROOT_URL}/{username}'
-        html = scraper_utils.get_page(twitter_user_url)
-        page_soup = soup(html, 'html.parser')
-
-        # Check for error on twitter page
-        if page_soup.find("div", {"class": "errorpage-topbar"}):
-            print(f"[Error] Invalid username {username}")
-            sys.exit(1)
-
-        # Get counts of tweets, following, and followers
-        counts = [profile_nav['data-count']
-                  for profile_nav in page_soup.find_all('span', {'class': 'ProfileNav-value'}, limit=3)]
-        # Get bio
-        bio = page_soup.find('p', {'class': 'ProfileHeaderCard-bio u-dir'}).text
-        # Get location
-        location = page_soup.find('span', {'class': 'ProfileHeaderCard-locationText u-dir'}).text
-        # Get full name
-        fullname = page_soup.find('a', {'class': 'ProfileHeaderCard-nameLink u-textInheritColor js-nav'}).text
-
-        user_profile = {
-            'id': self.extract_user_id(username, page_soup),
-            'username': username,
-            'tweets_count': counts[0],
-            'following_count': counts[1],
-            'followers_count': counts[2],
-            'bio': bio,
-            'location': location,
-            'fullname': fullname
-        }
-
-        return user_profile
-
-    @staticmethod
     def extract_tweet_id(url: str):
         return url.split('/')[-1]
 
-    def extract_tweets(self, page_soup, include_retweets: bool, oldest_date: str, username: str):
+    def extract_tweets(self, page_soup, include_retweets: bool, target: Target):
         # Set inclusion function depending on flags
         if include_retweets:
             include = lambda t: True
@@ -148,96 +181,43 @@ class Scraper:
             include = lambda t: not t.div.has_attr('data-retweeter')
 
         # Initialize user id
-        user_id = self.extract_user_id(username, page_soup)
+        user_id = target.get_user_id()
 
         # Extract tweets
         tweets = [{
-            'posted_by_id': user_id,
-            'posted_by_username': username,
-            'author_username': self.extract_author_username(self.get_url(t)),
             'tweet_id': self.extract_tweet_id(self.get_url(t)),
-            'url': TWITTER_ROOT_URL + self.get_url(t),
-            'originalDate': self.get_date(t),
-            'text': self.get_text(t),
-            'num_replies': self.get_num_replies(t),
-            'num_retweets': self.get_num_retweets(t),
+            'author_username': self.extract_author_username(self.get_url(t)),
+            'tweeted_on': self.get_date(t),
+            'posted_by_id': user_id,
+            'is_retweet': t.div.has_attr('data-retweeter'),
             'num_likes': self.get_num_likes(t),
-            'isRetweet': t.div.has_attr('data-retweeter')
+            'num_retweets': self.get_num_retweets(t),
+            'num_replies': self.get_num_replies(t),
+            'content': self.get_text(t),
+            # 'posted_by_username': username,
+            # 'url': TWITTER_ROOT_URL + self.get_url(t),
         } for t in page_soup.find_all('li', {'data-item-type': 'tweet'}) if include(t)]
 
-        # Remove tweets that are older than oldest_date
-        # Note: Twitter does NOT give date when tweet was retweeted. So retweets are straight away added.
-        fast_exit = False
-        filtered_tweets = []
-        if oldest_date is not None:
-            for tweet in tweets:
-                if tweet['isRetweet']:
-                    filtered_tweets.append(tweet)
-                elif self.is_tweet_old(tweet, oldest_date):
-                    fast_exit = True
-                    break
-                else:
-                    filtered_tweets.append(tweet)
-            return filtered_tweets, fast_exit
+        return tweets
 
-        return tweets, fast_exit
-
-    def scrape_tweets(self, username):
-        # Get user twitter url
-        twitter_user_url = f'{TWITTER_ROOT_URL}/{username}'
-
+    def scrape_target(self, target, stop_date=None):
         tweets = []
-        try:
-            fast_exit = False
-            while len(tweets) < self.num_pages:
-                if len(tweets) == 0:
-                    # If first page scraped, simply get root page of user
-                    html = scraper_utils.get_page(twitter_user_url)
-                    page_soup = soup(html, 'html.parser')
+        page_counter = 0
+        while page_counter < self.num_pages:
+            page_soup = target.get_next_page_soup()
+            if page_soup is None:
+                break
 
-                    # Check for error on twitter page
-                    if page_soup.find("div", {"class": "errorpage-topbar"}):
-                        print(f"[Error] Invalid username {username}")
-                        sys.exit(1)
+            new_tweets = self.extract_tweets(page_soup, self.include_retweets, target)
+            tweets += new_tweets
 
-                    # Add tweets
-                    result = self.extract_tweets(page_soup, self.include_retweets, self.oldest_date, username)
-                    tweets += result[0]
-                    fast_exit = result[1]
+            # Stop scraping if reached stop date
+            last_scraped_date = dt.datetime.strptime(tweets[-1]['tweeted_on'], "%I:%M %p - %d %b %Y")
+            # print(f"[DEBUG] stop_date: {stop_date}, last_scraped_date: {last_scraped_date}")
+            if (stop_date is not None) and (last_scraped_date < stop_date):
+                break
 
-                    # Ptr to next page of tweets
-                    ptr = page_soup.find("div", {"class": "stream-container"})["data-min-position"]
-                else:
-                    # Make request to get next tweets
-                    if self.checkpoint:
-                        raw_data = json.loads(scraper_utils.get_page(self.checkpoint))
-                        checkpoint = None
-                    else:
-                        raw_data = json.loads(scraper_utils.get_page(f'https://twitter.com/i/profiles/show/{username}/timeline/tweets?include_available_features=1&include_entities=1&max_position={ptr}&reset_error_state=false'))
-
-                    if not raw_data["has_more_items"] and not raw_data["min_position"]:
-                        print("[INFO] No more tweets returned")
-                        break
-
-                    page_soup = soup(raw_data['items_html'], 'html.parser')
-
-                    # Add tweets
-                    result = self.extract_tweets(page_soup, self.include_retweets, self.oldest_date, username)
-                    tweets += result[0]
-                    fast_exit = result[1]
-
-                    ptr = raw_data['min_position']
-
-                # Perform fast exit if we have passed oldest_date during scraping
-                if fast_exit:
-                    break
-
-                time.sleep(1)
-        except:
-            print(f"[ERROR] {sys.exc_info()[0]}")
-            traceback.print_exc(file=sys.stdout)
-
-        print(f"[INFO] {len(tweets)} scraped!")
+            page_counter += 1
 
         return tweets
 
