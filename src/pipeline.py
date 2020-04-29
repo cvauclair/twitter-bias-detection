@@ -31,7 +31,8 @@ class Pipeline:
         self.bert_wrapper = BERTWrapper(**self.config['sentiment_config'])
 
         # Init LDA
-        # TODO
+        print(f"[{dt.datetime.now()}] Initializing BERT sentiment model")
+        self.lda_controller = TopicAnalysisController(**self.config['lda_configs'])
 
         # Init Bias Inference
         # TODO
@@ -150,8 +151,6 @@ class Pipeline:
         # LDA
         # ----------------------------------------------
 
-        lda_controller = TopicAnalysisController()
-
         print(f"[{dt.datetime.now()}] Computing tweets topics")
         models = ['realDonaldTrump']
         for u in accounts:
@@ -163,7 +162,7 @@ class Pipeline:
 
                 if user_tweets:
                     # This happens per user
-                    tweets_topics = lda_controller.compute_topic_id_for_tweets(tweets=user_tweets_content, username=username)
+                    tweets_topics = self.lda_controller.compute_topic_id_for_tweets(tweets=user_tweets_content, username=username)
 
                 # for id, topic in user_tweets_id, tweets_topics:
                 # for i in range(len(user_tweets)):
