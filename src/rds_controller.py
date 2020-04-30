@@ -40,11 +40,13 @@ class RDSController:
 
     def get_tweets_from_user(self, author_username):
         with self.conn.cursor() as cur:
-            query = ('SELECT id, content FROM tweets WHERE authorUsername = {author_username}').format(author_username=author_username)
+            query = f"SELECT id, content FROM tweets WHERE authorUsername = '{author_username}'"
             cur.execute(query)
             content = cur.fetchall()
             print("SUCCESS: Successfully fetched tweets from:", author_username)
-            return content
+        
+        tweets = [{'tweet_id': t[0], 'content': t[1], 'author_username': author_username} for t in content]
+        return tweets
 
     def create_topic(self, name):
         with self.conn.cursor() as cur:
@@ -102,6 +104,7 @@ class RDSController:
                 tweets.append({'tweet_id': t[0], 'content': t[1]})
 
         return tweets
+
     def get_latest_tweet_date(self, user_id):
         with self.conn.cursor() as cur:
             query = f"""

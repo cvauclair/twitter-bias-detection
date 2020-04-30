@@ -9,6 +9,7 @@ import pymysql
 from rds_controller import RDSController
 from sentiment.model import BERTWrapper
 from topic_analysis.topic_analysis_controller import TopicAnalysisController
+from bias.bias import Bias
 
 class Pipeline:
     def __init__(self, config_path):
@@ -32,7 +33,7 @@ class Pipeline:
 
         # Init LDA
         print(f"[{dt.datetime.now()}] Initializing BERT sentiment model")
-        self.lda_controller = TopicAnalysisController(**self.config['lda_configs'])
+        self.lda_controller = TopicAnalysisController(**self.config['lda_config'])
 
         # Init Bias Inference
         # TODO
@@ -119,7 +120,11 @@ class Pipeline:
         print(f"[{dt.datetime.now()}] Computing tweets sentiment")
 
         if recompute:
-            all_tweets = self.rds_controller.get_all_tweets()
+            all_tweets = []
+            for acc in accounts:
+                username = acc['username'] if type(acc) == dict else acc
+                all_tweets += self.rds_controller.get_tweets_from_user(username)
+
         else:
             all_tweets = scraped_tweets
 
@@ -135,7 +140,7 @@ class Pipeline:
         for i, tweet in enumerate(all_tweets):
             tweet['sentiment'] = tweet_sent[i]['sentiment']
 
-        pprint(all_tweets)
+        # pprint(all_tweets)
 
         # Update tweet db
         print(f"[{dt.datetime.now()}] Updating tweets sentiment in database")
@@ -156,13 +161,22 @@ class Pipeline:
         for u in accounts:
             username = u['username'] if type(u) == dict else u
             if username in models:
-                user_tweets = list(filter(lambda tweet: tweet['author_username'] == username, scraped_tweets))
+                user_tweets = list(filter(lambda tweet: tweet['author_username'] == username, all_tweets))
                 user_tweets_content = [t['content'] for t in user_tweets]
                 user_tweets_id = [t['tweet_id'] for t in user_tweets]
 
                 if user_tweets:
                     # This happens per user
-                    tweets_topics = self.lda_controller.compute_topic_id_for_tweets(tweets=user_tweets_content, username=username)
+                    try:
+                        tweets_topics = self.lda_controller.compute_topic_id_for_tweets(tweets=user_tweets_content, username=username)
+                    except:
+                        print(f"WARNING: Could not compute topics for {username}")
+                        continue
+
+                for i, tweet in enumerate(user_tweets):
+                    tweet['topic_id'] = tweets_topics[i]
+
+                # pprint(user_tweets)
 
                 # for id, topic in user_tweets_id, tweets_topics:
                 # for i in range(len(user_tweets)):
@@ -172,11 +186,34 @@ class Pipeline:
         # STAGE 4
         # Bias Inference
         # ----------------------------------------------
+        biases = {}
+        for u in accounts:
+            username = u['username'] if type(u) == dict else u
 
+            user_tweets = list(filter(lambda tweet: (tweet['author_username'] == username) and ('topic_id' in tweet), all_tweets))
+            user_biases = {}
+            topic_tweets = {}
 
-        # TODO: This is all changing
+            # Prepare bias inference
+            for tweet in user_tweets:
+                if tweet['topic_id'] not in user_biases:
+                    user_biases[tweet['topic_id']] = Bias()
+                if tweet['topic_id'] not in topic_tweets:
+                    topic_tweets[tweet['topic_id']] = []
 
-# ONLY HERE FOR TESTING
+                topic_tweets[tweet['topic_id']].append(tweet)
+
+            for topic in user_biases:
+                user_biases[topic].infer2(sentiments=[t['sentiment'] for t in topic_tweets[topic]], **self.config['inference_config'])
+
+            biases[username] = {topic: {
+                'topic': self.lda_controller.get_top_words_n_per_topic(topic, 5, username),
+                'bias': user_biases[topic].export()
+            } for topic in user_biases}
+
+        pprint(all_tweets)
+        pprint(biases)
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser("Bias Inference Pipeline")
     parser.add_argument('-c', '--config', dest='config_path', type=str, default='config.yaml')

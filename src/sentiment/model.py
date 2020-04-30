@@ -100,14 +100,24 @@ class SentimentBERT(pl.LightningModule):
         
         y_hat = torch.argmax(logits, dim=1).reshape(-1,1)
         acc = (batch['sentiment'] == y_hat).sum().float()/batch['sentiment'].shape[0]
-        spec = ((batch['sentiment'] == y_hat) & (y_hat == 1)).sum()/(y_hat == 1).sum().float()
-        sens = ((batch['sentiment'] == y_hat) & (y_hat == 0)).sum()/(y_hat == 0).sum().float()
+        # print(f"[DEBUG] true positives = {((batch['sentiment'] == y_hat) & (y_hat == 1)).sum()}")
+        # print(f"[DEBUG] total positives = {(y_hat == 1).sum()}")
+        # print(f"[DEBUG] true negatives = {((batch['sentiment'] == y_hat) & (y_hat == 0)).sum()}")
+        # print(f"[DEBUG] total negatives = {(y_hat == 0).sum()}")
+
+        total_positives = (y_hat == 1).sum()
+        true_positives = ((batch['sentiment'] == y_hat) & (y_hat == 1)).sum()
+
+        total_negatives = (y_hat == 0).sum()
+        true_negatives = ((batch['sentiment'] == y_hat) & (y_hat == 0)).sum()
 
         logs = {
             'loss': loss,
             'acc': acc,
-            'specificity': spec,
-            'sensitivity': sens
+            'total_positives': total_positives,
+            'true_positives': true_positives,
+            'total_negatives': total_negatives,
+            'true_negatives': true_negatives,
         }
 
         return logs
@@ -115,12 +125,20 @@ class SentimentBERT(pl.LightningModule):
     def test_epoch_end(self, outputs):
         avg_loss = torch.stack([x['loss'] for x in outputs]).mean()
         avg_acc = torch.stack([x['acc'] for x in outputs]).mean()
-        avg_specificity = torch.stack([x['specificity'] for x in outputs]).mean()
-        avg_sensitivity = torch.stack([x['sensitivity'] for x in outputs]).mean()
+        # avg_specificity = torch.stack([x['specificity'] for x in outputs]).mean()
+        # avg_sensitivity = torch.stack([x['sensitivity'] for x in outputs]).mean()
+        total_positives = torch.stack([x['total_positives'] for x in outputs]).sum()
+        true_positives = torch.stack([x['true_positives'] for x in outputs]).sum()
+        total_negatives = torch.stack([x['total_negatives'] for x in outputs]).sum()
+        true_negatives = torch.stack([x['true_negatives'] for x in outputs]).sum()
+
+        specificity = true_positives/total_positives.float()
+        sensitivity = true_negatives/total_negatives.float()
+
         print(f"[INFO] avg_acc = {avg_acc.item()}")
-        print(f"[INFO] avg_specificity = {avg_specificity.item()}")
-        print(f"[INFO] avg_sensitivity = {avg_sensitivity.item()}")
-        test_results = {'accuracy': avg_acc, 'specificity': avg_specificity, 'sensitivity': avg_sensitivity}
+        print(f"[INFO] specificity = {specificity.item()}")
+        print(f"[INFO] sensitivity = {sensitivity.item()}")
+        test_results = {'accuracy': avg_acc, 'specificity': specificity, 'sensitivity': sensitivity}
         
         tensorboard_logs = {'val_loss': avg_loss, 'val_acc': avg_acc}
 
@@ -154,7 +172,7 @@ class SentimentBERT(pl.LightningModule):
 
     def test_dataloader(self):
         self.load_data()
-        return DataLoader(self.testing_dataset, batch_size=self.hparams.batch_size, shuffle=False, collate_fn=TwitterJSONDataset.collate)
+        return DataLoader(self.testing_dataset, batch_size=self.hparams.batch_size, shuffle=False, collate_fn=TwitterCSVDataset.collate)
 
 # ================================================================
 # Model Wrapper
@@ -290,7 +308,7 @@ class BERTWrapper(object):
 # Main
 # ================================================================
 
-def main(args):
+def test(args):
     # Set seeds for reproducibility
     torch.manual_seed(0)
     np.random.seed(0)
@@ -308,4 +326,4 @@ if __name__ == "__main__":
     parser.add_argument('--test', action='store_true')
     parser.add_argument('--eval', action='store_true')
     args = parser.parse_args()
-    main(args)
+    test(args)
