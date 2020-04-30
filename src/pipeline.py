@@ -33,7 +33,7 @@ class Pipeline:
 
         # Init LDA
         print(f"[{dt.datetime.now()}] Initializing BERT sentiment model")
-        self.lda_controller = TopicAnalysisController(**self.config['lda_configs'])
+        self.lda_controller = TopicAnalysisController(**self.config['lda_config'])
 
         # Init Bias Inference
         # TODO
@@ -120,7 +120,11 @@ class Pipeline:
         print(f"[{dt.datetime.now()}] Computing tweets sentiment")
 
         if recompute:
-            all_tweets = self.rds_controller.get_all_tweets()
+            all_tweets = []
+            for acc in accounts:
+                username = acc['username'] if type(acc) == dict else acc
+                all_tweets += self.rds_controller.get_tweets_from_user(username)
+
         else:
             all_tweets = scraped_tweets
 
@@ -157,18 +161,22 @@ class Pipeline:
         for u in accounts:
             username = u['username'] if type(u) == dict else u
             if username in models:
-                user_tweets = list(filter(lambda tweet: tweet['author_username'] == username, scraped_tweets))
+                user_tweets = list(filter(lambda tweet: tweet['author_username'] == username, all_tweets))
                 user_tweets_content = [t['content'] for t in user_tweets]
                 user_tweets_id = [t['tweet_id'] for t in user_tweets]
 
                 if user_tweets:
                     # This happens per user
-                    tweets_topics = self.lda_controller.compute_topic_id_for_tweets(tweets=user_tweets_content, username=username)
+                    try:
+                        tweets_topics = self.lda_controller.compute_topic_id_for_tweets(tweets=user_tweets_content, username=username)
+                    except:
+                        print(f"WARNING: Could not compute topics for {username}")
+                        continue
 
                 for i, tweet in enumerate(user_tweets):
                     tweet['topic_id'] = tweets_topics[i]
 
-                pprint(user_tweets)
+                # pprint(user_tweets)
 
                 # for id, topic in user_tweets_id, tweets_topics:
                 # for i in range(len(user_tweets)):
@@ -182,7 +190,7 @@ class Pipeline:
         for u in accounts:
             username = u['username'] if type(u) == dict else u
 
-            user_tweets = list(filter(lambda tweet: tweet['author_username'] == username, scraped_tweets))
+            user_tweets = list(filter(lambda tweet: (tweet['author_username'] == username) and ('topic_id' in tweet), all_tweets))
             user_biases = {}
             topic_tweets = {}
 
@@ -198,9 +206,12 @@ class Pipeline:
             for topic in user_biases:
                 user_biases[topic].infer2(sentiments=[t['sentiment'] for t in topic_tweets[topic]], **self.config['inference_config'])
 
-            biases[username] = {topic: user_biases[topic].export() for topic in user_biases}
+            biases[username] = {topic: {
+                'topic': self.lda_controller.get_top_words_n_per_topic(topic, 5, username),
+                'bias': user_biases[topic].export()
+            } for topic in user_biases}
 
-        pprint(scraped_tweets)
+        pprint(all_tweets)
         pprint(biases)
 
 if __name__ == '__main__':

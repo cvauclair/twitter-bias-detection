@@ -6,9 +6,8 @@ scraper_config:
 sentiment_config:
   'model_path': 'resource/models/sentiment/bert_model.ckpt'
 lda_config:
-  'model_path': 'resource/models/lda/{}/model'
-  'dictionary_path': 'resource/models/lda/{}/dictionary'
-  'models_file': 'resource/models/lda/user_models.json'
+  'model_path': 'resource/models/lda/'
+  'dictionary_path': 'resource/models/lda/'
 inference_config:
   'specificity': 0.86
   'sensitivity': 0.86
