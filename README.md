@@ -17,6 +17,6 @@ A Twitter bias detection and analysis framework.
 ## Usage
 `pip3 install -r requirements.txt`
 
-`python3 src/scraper/main.py -n numOfPages -o outputFile -t scheduledTime twitterUsername` 
+`python3 src/pipeline.py -c config.yaml -a USERNAME_TO_SCRAPE`
 
 (optional arguments excluded)
