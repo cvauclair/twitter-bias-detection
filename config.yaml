@@ -1,5 +1,5 @@
 scraper_config:
-  'num_pages': 20
+  'num_pages': 100
   'include_retweets': true
   'oldest_date': None
   'checkpoint': None

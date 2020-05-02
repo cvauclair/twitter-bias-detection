@@ -34,9 +34,9 @@ class RDSController:
         with self.conn.cursor() as cur:
             query = ('SELECT * FROM users')
             cur.execute(query)
-            user = cur.fetchall()
-            print("SUCCESS: Successfully fetched user with id:")
-            return user
+            users = cur.fetchall()
+            print("SUCCESS: Successfully fetched all users")
+            return users
 
     def get_tweets_from_user(self, author_username):
         with self.conn.cursor() as cur:
@@ -72,26 +72,26 @@ class RDSController:
     def create_user(self, user_id, username, num_followers, num_following, num_tweets, bio, location,
                     fullname, photo_url=None):
         with self.conn.cursor() as cur:
-            query = (
-                'INSERT INTO users (id, username, followersCount, followingCount, tweetsCount, bio, location, photoURL, fullname) '
-                f'VALUES ("{user_id}", "{username}", "{num_followers}", "{num_following})", "{num_tweets}", "{bio}", "{location}", "{photo_url}", "{fullname}")'
-            )
-            
-            cur.execute(query)
+            query = """
+                INSERT INTO users (id, handle, followersCount, followingCount, tweetsCount, bio, location, photoURL, fullname)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """
+
+            cur.execute(query, (user_id, username, num_followers, num_following, num_tweets, bio, location, photo_url, fullname))
             self.conn.commit()
             print(f"SUCCESS: Creation of user with ID {user_id} succeeded")
 
     def create_tweet(self, tweet_id, author_username, tweeted_on, posted_by_id, is_retweet, num_likes, num_retweets,
                      num_replies, content=None, sentiment=None):
         with self.conn.cursor() as cur:
-            query = (
-                'INSERT INTO tweets (id, content, authorUsername, tweetedOn, postedById, isRetweet, likesCount, retweetsCount, repliesCount, sentiment) '
-                f'VALUES ("{tweet_id}", "{content}", "{author_username}", "{tweeted_on}", "{posted_by_id}", "{is_retweet}", "{num_likes}", "{num_retweets}", "{num_replies}", "{sentiment}")'
-            )
+            query = """
+                INSERT INTO tweets (id, content, authorUsername, tweetedOn, postedById, isRetweet, likesCount, retweetsCount, repliesCount, sentiment)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """
 
-            cur.execute(query)
+            cur.execute(query, (tweet_id, content, author_username, tweeted_on, posted_by_id, is_retweet, num_likes, num_retweets, num_replies, sentiment))
             self.conn.commit()
-            print(f"SUCCESS: Creation of tweet with ID {tweet_id} succeeded")
+            # print(f"SUCCESS: Creation of tweet with ID {tweet_id} succeeded")
 
     def get_all_tweets(self):
         tweets = []
@@ -135,7 +135,7 @@ class RDSController:
 
             cur.execute(query)
             self.conn.commit()
-            print(f"SUCCESS: Set sentiment of tweet with ID {tweet_id} to {sentiment} succeeded")
+            # print(f"SUCCESS: Set sentiment of tweet with ID {tweet_id} to {sentiment} succeeded")
 
     def set_tweet_topic(self, tweet_id, topic_id):
         with self.conn.cursor() as cur:

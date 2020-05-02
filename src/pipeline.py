@@ -1,6 +1,8 @@
 import datetime as dt
 import argparse
 from pprint import pprint
+import glob
+import os
 
 import yaml
 from scraper import Scraper, Target
@@ -74,7 +76,7 @@ class Pipeline:
             with open(self.filename, 'w') as f:
                 json.dump(tweets, f, indent=4)
 
-    def run_pipeline(self, accounts, recompute=False):
+    def run_pipeline(self, accounts, recompute=False, ignore_date=False):
         # ----------------------------------------------
         # STAGE 1
         # Scraping of tweets
@@ -90,10 +92,11 @@ class Pipeline:
             user_id = target.get_user_id()
 
             user = self.rds_controller.get_user(user_id)
-
+            # print(f"[DEBUG] user = {user}")
             if len(user) == 0:
                 try:
                     user_profile = target.get_profile()
+                    pprint(user_profile)
                     self.rds_controller.create_user(**user_profile)
 
                 except pymysql.err.IntegrityError as err:
@@ -102,15 +105,19 @@ class Pipeline:
                     continue
 
             # Get the date of the most recent tweet in the DB
-            latest_date = self.rds_controller.get_latest_tweet_date(user_id)
-            scraped_tweets += self.scraper.scrape_target(target, latest_date)
+            if ignore_date:
+                scraped_tweets += self.scraper.scrape_target(target)                
+            else:
+                latest_date = self.rds_controller.get_latest_tweet_date(user_id)
+                scraped_tweets += self.scraper.scrape_target(target, latest_date)
 
         # Update DB
         print(f"[{dt.datetime.now()}] Uploading scraped tweets to RDS database")
         for tweet in scraped_tweets:
             try:
                 self.rds_controller.create_tweet(**tweet)
-            except:
+            except Exception as e:
+                print(f"ERROR: {e}")
                 pass
 
         # ----------------------------------------------
@@ -157,7 +164,10 @@ class Pipeline:
         # ----------------------------------------------
 
         print(f"[{dt.datetime.now()}] Computing tweets topics")
-        models = ['realDonaldTrump']
+
+        # Get available LDA models
+        models = [f.split('/')[-1] for f in glob.glob('resource/models/lda/*') if os.path.isdir(f)]
+
         for u in accounts:
             username = u['username'] if type(u) == dict else u
             if username in models:
@@ -189,6 +199,7 @@ class Pipeline:
         biases = {}
         for u in accounts:
             username = u['username'] if type(u) == dict else u
+            print(f"[{dt.datetime.now()}] Computing biases for user {username}")
 
             user_tweets = list(filter(lambda tweet: (tweet['author_username'] == username) and ('topic_id' in tweet), all_tweets))
             user_biases = {}
@@ -218,14 +229,15 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser("Bias Inference Pipeline")
     parser.add_argument('-c', '--config', dest='config_path', type=str, default='config.yaml')
     parser.add_argument('-a', '--account', dest='account', type=str, default=None)
-    parser.add_argument('--accounts_path', dest='accounts_path', type=str, default='accounts.json')
+    parser.add_argument('--accounts-path', dest='accounts_path', type=str, default='accounts.json')
     parser.add_argument('-r', '--recompute', action='store_true')
+    parser.add_argument('--ignore-date', dest='ignore_date', action='store_true')
     args = parser.parse_args()
     
     p = Pipeline(args.config_path)
 
     if args.account is None:
         accounts = Pipeline.read_json_file(args.accounts_path)
-        p.run_pipeline(accounts)
+        p.run_pipeline(accounts, args.recompute, args.ignore_date)
     else:
-        p.run_pipeline([args.account], args.recompute)
+        p.run_pipeline([args.account], args.recompute, args.ignore_date)
