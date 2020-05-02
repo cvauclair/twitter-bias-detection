@@ -1,6 +1,8 @@
 import datetime as dt
 import argparse
 from pprint import pprint
+import glob
+import os
 
 import yaml
 from scraper import Scraper, Target
@@ -162,7 +164,10 @@ class Pipeline:
         # ----------------------------------------------
 
         print(f"[{dt.datetime.now()}] Computing tweets topics")
-        models = ['realDonaldTrump']
+
+        # Get available LDA models
+        models = [f.split('/')[-1] for f in glob.glob('resource/models/lda/*') if os.path.isdir(f)]
+
         for u in accounts:
             username = u['username'] if type(u) == dict else u
             if username in models:
@@ -194,6 +199,7 @@ class Pipeline:
         biases = {}
         for u in accounts:
             username = u['username'] if type(u) == dict else u
+            print(f"[{dt.datetime.now()}] Computing biases for user {username}")
 
             user_tweets = list(filter(lambda tweet: (tweet['author_username'] == username) and ('topic_id' in tweet), all_tweets))
             user_biases = {}
