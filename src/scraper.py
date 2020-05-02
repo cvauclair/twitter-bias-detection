@@ -184,19 +184,27 @@ class Scraper(object):
         user_id = target.get_user_id()
 
         # Extract tweets
-        tweets = [{
-            'tweet_id': self.extract_tweet_id(self.get_url(t)),
-            'author_username': self.extract_author_username(self.get_url(t)),
-            'tweeted_on': self.get_date(t),
-            'posted_by_id': user_id,
-            'is_retweet': t.div.has_attr('data-retweeter'),
-            'num_likes': self.get_num_likes(t),
-            'num_retweets': self.get_num_retweets(t),
-            'num_replies': self.get_num_replies(t),
-            'content': self.get_text(t),
-            # 'posted_by_username': username,
-            # 'url': TWITTER_ROOT_URL + self.get_url(t),
-        } for t in page_soup.find_all('li', {'data-item-type': 'tweet'}) if include(t)]
+        tweets = []
+        for t in page_soup.find_all('li', {'data-item-type': 'tweet'}):
+            if not include(t):
+                continue
+            
+            try:
+                tweets.append({
+                    'tweet_id': self.extract_tweet_id(self.get_url(t)),
+                    'author_username': self.extract_author_username(self.get_url(t)),
+                    'tweeted_on': self.get_date(t),
+                    'posted_by_id': user_id,
+                    'is_retweet': t.div.has_attr('data-retweeter'),
+                    'num_likes': self.get_num_likes(t),
+                    'num_retweets': self.get_num_retweets(t),
+                    'num_replies': self.get_num_replies(t),
+                    'content': self.get_text(t),
+                    # 'posted_by_username': username,
+                    # 'url': TWITTER_ROOT_URL + self.get_url(t),
+                })
+            except:
+                continue
 
         return tweets
 
